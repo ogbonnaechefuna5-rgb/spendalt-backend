@@ -1,12 +1,14 @@
-package middleware
+package auth
 
 import (
+	"fmt"
 	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthRequired(secret string) fiber.Handler {
+func AuthRequired(secret string, tokenStore TokenStore) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		auth := c.Get("Authorization")
 		if auth == "" {
@@ -15,6 +17,9 @@ func AuthRequired(secret string) fiber.Handler {
 
 		tokenString := strings.TrimPrefix(auth, "Bearer ")
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return []byte(secret), nil
 		})
 
@@ -23,7 +28,16 @@ func AuthRequired(secret string) fiber.Handler {
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
-		c.Locals("user_id", claims["user_id"])
+
+		if jti, ok := claims["jti"].(string); ok && jti != "" {
+			revoked, err := tokenStore.IsRevoked(jti)
+			if err != nil || revoked {
+				return c.Status(401).JSON(fiber.Map{"error": "token has been revoked"})
+			}
+		}
+
+		c.Locals("user_id", claims["user_id"].(string))
+		c.Locals("token", tokenString)
 		return c.Next()
 	}
 }

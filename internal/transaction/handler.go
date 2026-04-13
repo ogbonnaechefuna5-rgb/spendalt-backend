@@ -1,7 +1,6 @@
 package transaction
 
 import (
-	"strconv"
 	"github.com/gofiber/fiber/v2"
 	"github.com/spendalt/backend/internal/core"
 )
@@ -22,11 +21,14 @@ func (h *Handler) IngestSMS(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
-	tx, err := h.service.IngestSMS(h.UserID(c), req.SMSText)
+	raw, err := h.service.IngestSMS(h.UserID(c), req.SMSText)
 	if err != nil {
 		return h.Fail(c, 400, err)
 	}
-	return h.Created(c, "transaction", tx)
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"message": "SMS received and queued for processing",
+		"id":      raw.ID,
+	})
 }
 
 func (h *Handler) IngestManual(c *fiber.Ctx) error {
@@ -48,8 +50,7 @@ func (h *Handler) IngestManual(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetTransactions(c *fiber.Ctx) error {
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	page, limit := h.ParsePage(c)
 	transactions, err := h.service.GetTransactions(h.UserID(c), page, limit)
 	if err != nil {
 		return h.Fail(c, 500, err)

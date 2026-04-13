@@ -10,5 +10,6 @@ type Category struct {
 
 type CategoryBreakdown struct {
 	Category string  `json:"category"`
+	Count    int     `json:"count"`
 	Total    float64 `json:"total"`
 }

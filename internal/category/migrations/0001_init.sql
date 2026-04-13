@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) UNIQUE NOT NULL,
@@ -14,5 +15,8 @@ INSERT INTO categories (name, icon, keywords) VALUES
 ('Airtime', '📱', ARRAY['airtime', 'data', 'recharge', 'mtn', 'glo', 'airtel', '9mobile']),
 ('Transfer', '💸', ARRAY['transfer', 'sent to', 'payment to']),
 ('Income', '💰', ARRAY['salary', 'credit alert', 'received from']),
-('Other', '📦', ARRAY[])
+('Other', '📦', ARRAY[]::text[])
 ON CONFLICT (name) DO NOTHING;
+
+-- +goose Down
+DROP TABLE IF EXISTS categories;

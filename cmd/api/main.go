@@ -1,81 +1,110 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/spendalt/backend/config"
-	"github.com/spendalt/backend/internal/common"
-	"github.com/spendalt/backend/internal/core"
-	"github.com/spendalt/backend/internal/user"
+	"github.com/spendalt/backend/internal/analytics"
 	"github.com/spendalt/backend/internal/auth"
-	"github.com/spendalt/backend/internal/transaction"
-	"github.com/spendalt/backend/internal/category"
 	"github.com/spendalt/backend/internal/budget"
-	"github.com/spendalt/backend/internal/middleware"
+	"github.com/spendalt/backend/internal/category"
+	"github.com/spendalt/backend/internal/common"
+	"github.com/spendalt/backend/internal/savings"
+	"github.com/spendalt/backend/internal/transaction"
+	"github.com/spendalt/backend/internal/user"
 )
 
 func main() {
-	// Load configuration
 	cfg := config.Load()
 
-	// Initialize database
 	db, err := common.NewPostgresDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal("Database connection failed:", err)
 	}
 	defer db.Close()
 
-	// Initialize repositories
+	// Repositories
 	userRepo := user.NewRepository(db)
 	txRepo := transaction.NewRepository(db)
 	catRepo := category.NewRepository(db)
 	budgetRepo := budget.NewRepository(db)
-	budgetCoreRepo := &core.Repository[budget.Budget]{
-		DB:    db,
-		Table: "budgets",
-		Scan: func(b *budget.Budget) []interface{} {
-			return []interface{}{&b.ID, &b.UserID, &b.Category, &b.Amount, &b.Period, &b.CreatedAt}
-		},
+	savingsRepo := savings.NewRepository(db)
+	analyticsRepo := analytics.NewRepository(db)
+	refreshRepo := auth.NewRefreshTokenRepository(db)
+
+	// Token store (Redis optional — falls back to in-memory)
+	tokenStore, err := auth.NewTokenStore(cfg.RedisURL)
+	if err != nil {
+		log.Println("[warn] Token store init failed, using in-memory:", err)
+		tokenStore, _ = auth.NewTokenStore("")
 	}
 
-	// Initialize services
-	authService := auth.NewService(userRepo, cfg.JWTSecret)
-	userService := user.NewService(userRepo)
-	txService := transaction.NewService(txRepo)
-	catService := category.NewService(catRepo)
-	budgetService := budget.NewService(budgetRepo, budgetCoreRepo)
+	// Ingestion worker
+	categorizer := transaction.NewRuleEngine()
+	txWorker := transaction.NewWorker(txRepo, categorizer)
+	ctx, cancel := context.WithCancel(context.Background())
+	go txWorker.Run(ctx)
 
-	// Initialize handlers
+	// Services
+	authService := auth.NewService(userRepo, cfg.JWTSecret, tokenStore, refreshRepo)
+	userService := user.NewService(userRepo)
+	txService := transaction.NewService(txRepo, categorizer, txWorker)
+	catService := category.NewService(catRepo)
+	budgetService := budget.NewService(budgetRepo)
+	savingsService := savings.NewService(savingsRepo)
+	analyticsService := analytics.NewService(analyticsRepo)
+
+	// Handlers
 	authHandler := auth.NewHandler(authService)
 	userHandler := user.NewHandler(userService)
 	txHandler := transaction.NewHandler(txService)
 	catHandler := category.NewHandler(catService)
 	budgetHandler := budget.NewHandler(budgetService)
+	savingsHandler := savings.NewHandler(savingsService)
+	analyticsHandler := analytics.NewHandler(analyticsService)
 
-	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
+		BodyLimit: 1 * 1024 * 1024,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
 		},
 	})
 
-	// Middleware
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE",
+		AllowHeaders: "Origin,Content-Type,Authorization,X-Device",
+	}))
 	app.Use(logger.New())
 
-	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	// Setup routes
-	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, cfg.JWTSecret)
+	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, cfg.JWTSecret, tokenStore)
 
-	// Start server
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-quit
+		log.Println("Shutting down...")
+		cancel()
+		_ = app.Shutdown()
+	}()
+
 	log.Printf("Server starting on port %s", cfg.Port)
-	log.Fatal(app.Listen(":" + cfg.Port))
+	if err := app.Listen(":" + cfg.Port); err != nil {
+		log.Println("Server stopped:", err)
+	}
 }
 
 func setupRoutes(
@@ -85,36 +114,56 @@ func setupRoutes(
 	txHandler *transaction.Handler,
 	catHandler *category.Handler,
 	budgetHandler *budget.Handler,
+	savingsHandler *savings.Handler,
+	analyticsHandler *analytics.Handler,
 	jwtSecret string,
+	tokenStore auth.TokenStore,
 ) {
-	// API routes
 	api := app.Group("/api/v1")
 
-	// Public routes
-	api.Post("/auth/signup", authHandler.Signup)
-	api.Post("/auth/login", authHandler.Login)
+	authLimiter := limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: 1 * 60 * 1000000000,
+	})
+	api.Post("/auth/signup", authLimiter, authHandler.Signup)
+	api.Post("/auth/login", authLimiter, authHandler.Login)
+	api.Post("/auth/refresh", authLimiter, authHandler.Refresh)
 
-	// Protected routes
-	protected := api.Group("", middleware.AuthRequired(jwtSecret))
-	
-	// User routes
+	protected := api.Group("", auth.AuthRequired(jwtSecret, tokenStore))
+
+	protected.Post("/auth/logout", authHandler.Logout)
+
 	protected.Get("/user/profile", userHandler.GetProfile)
 	protected.Put("/user/profile", userHandler.UpdateProfile)
 	protected.Post("/user/change-password", userHandler.ChangePassword)
 	protected.Delete("/user/account", userHandler.DeleteAccount)
-	
-	// Transaction routes
+	protected.Get("/user/preferences", userHandler.GetPreferences)
+	protected.Put("/user/preferences", userHandler.SavePreferences)
+	protected.Get("/user/linked-accounts", userHandler.GetLinkedAccounts)
+	protected.Delete("/user/linked-accounts/:id", userHandler.RemoveLinkedAccount)
+	protected.Post("/user/linked-accounts/:id/sync", userHandler.SyncLinkedAccount)
+	protected.Get("/user/sessions", userHandler.GetSessions)
+	protected.Delete("/user/sessions", userHandler.RevokeAllSessions)
+
 	protected.Post("/transactions/ingest/sms", txHandler.IngestSMS)
 	protected.Post("/transactions/ingest/manual", txHandler.IngestManual)
 	protected.Get("/transactions", txHandler.GetTransactions)
-	
-	// Category routes
+
 	protected.Get("/categories", catHandler.GetCategories)
 	protected.Get("/categories/breakdown", catHandler.GetCategoryBreakdown)
-	
-	// Budget routes
+
 	protected.Post("/budgets", budgetHandler.CreateBudget)
 	protected.Get("/budgets", budgetHandler.GetBudgets)
 	protected.Put("/budgets/:id", budgetHandler.UpdateBudget)
 	protected.Delete("/budgets/:id", budgetHandler.DeleteBudget)
+
+	protected.Post("/savings", savingsHandler.CreateGoal)
+	protected.Get("/savings", savingsHandler.GetGoals)
+	protected.Put("/savings/:id/progress", savingsHandler.UpdateProgress)
+	protected.Delete("/savings/:id", savingsHandler.DeleteGoal)
+
+	protected.Get("/analytics/insights", analyticsHandler.GetInsights)
+	protected.Get("/analytics/weekly-trend", analyticsHandler.GetWeeklyTrend)
+
+	protected.Get("/health/score", analyticsHandler.GetHealthScore)
 }
