@@ -1,6 +1,9 @@
 package transaction
 
 import (
+	"database/sql"
+	"errors"
+
 	"github.com/spendalt/backend/internal/common"
 	"github.com/spendalt/backend/internal/core"
 )
@@ -108,5 +111,8 @@ func (r *repository) GetByFingerprint(fingerprint string) (*Transaction, error) 
 		&tx.Merchant, &tx.Category, &tx.Description, &tx.Fingerprint,
 		&tx.Source, &tx.TransactionDate, &tx.CreatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrNotFound
+	}
 	return tx, err
 }

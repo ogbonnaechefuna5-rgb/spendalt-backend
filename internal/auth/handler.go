@@ -1,10 +1,15 @@
 package auth
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/spendalt/backend/internal/core"
+	"github.com/spendalt/backend/internal/monitor"
 )
 
 type Handler struct {
+	core.Handler
 	service Service
 }
 
@@ -21,16 +26,13 @@ func (h *Handler) Signup(c *fiber.Ctx) error {
 		LastName   string `json:"last_name"`
 		Phone      string `json:"phone"`
 	}
-
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return h.Fail(c, 400, errors.New("invalid request body"))
 	}
-
 	user, err := h.service.Register(req.Email, req.Password, req.FirstName, req.MiddleName, req.LastName, req.Phone)
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return h.Fail(c, 400, err)
 	}
-
 	return c.Status(201).JSON(fiber.Map{
 		"message": "Account created successfully",
 		"user": fiber.Map{
@@ -49,13 +51,12 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 		Password   string `json:"password"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request body"})
+		return h.Fail(c, 400, errors.New("invalid request body"))
 	}
-	device := c.Get("X-Device", "Unknown Device")
-	ip := c.IP()
-	user, accessToken, refreshToken, err := h.service.Login(req.Identifier, req.Password, device, ip)
+	d := monitor.ExtractDeviceInfo(c)
+	user, accessToken, refreshToken, err := h.service.Login(req.Identifier, req.Password, d.DeviceID, d.IP, d.DeviceType, d.OS, d.AppVersion)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": err.Error()})
+		return h.Fail(c, 401, err)
 	}
 	return c.JSON(fiber.Map{
 		"token":         accessToken,
@@ -75,11 +76,11 @@ func (h *Handler) Refresh(c *fiber.Ctx) error {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.RefreshToken == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "refresh_token required"})
+		return h.Fail(c, 400, errors.New("refresh_token required"))
 	}
 	newAccess, newRefresh, err := h.service.Refresh(req.RefreshToken)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": err.Error()})
+		return h.Fail(c, 401, err)
 	}
 	return c.JSON(fiber.Map{
 		"token":         newAccess,
@@ -88,9 +89,9 @@ func (h *Handler) Refresh(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Logout(c *fiber.Ctx) error {
-	tokenString, _ := c.Locals("token").(string)
-	if err := h.service.Logout(tokenString); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	// Revoke access token if still valid (best-effort — ignore if expired)
+	if tokenString, ok := c.Locals("token").(string); ok && tokenString != "" {
+		_ = h.service.Logout(tokenString)
 	}
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
@@ -98,5 +99,5 @@ func (h *Handler) Logout(c *fiber.Ctx) error {
 	if c.BodyParser(&req) == nil && req.RefreshToken != "" {
 		_ = h.service.RevokeRefreshToken(req.RefreshToken)
 	}
-	return c.JSON(fiber.Map{"message": "logged out successfully"})
+	return h.Message(c, "logged out successfully")
 }

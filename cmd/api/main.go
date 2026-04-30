@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -10,13 +11,15 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/spendalt/backend/config"
 	"github.com/spendalt/backend/internal/analytics"
+	"github.com/spendalt/backend/internal/monitor"
+	_ "github.com/spendalt/backend/internal/monitor" // register monitor migrations
 	"github.com/spendalt/backend/internal/auth"
 	"github.com/spendalt/backend/internal/budget"
 	"github.com/spendalt/backend/internal/category"
 	"github.com/spendalt/backend/internal/common"
+	"github.com/spendalt/backend/internal/migrations"
 	"github.com/spendalt/backend/internal/savings"
 	"github.com/spendalt/backend/internal/transaction"
 	"github.com/spendalt/backend/internal/user"
@@ -30,6 +33,10 @@ func main() {
 		log.Fatal("Database connection failed:", err)
 	}
 	defer db.Close()
+
+	if err := migrations.RunUp(db.DB); err != nil {
+		log.Fatal("Migrations failed:", err)
+	}
 
 	// Repositories
 	userRepo := user.NewRepository(db)
@@ -55,7 +62,7 @@ func main() {
 
 	// Services
 	authService := auth.NewService(userRepo, cfg.JWTSecret, tokenStore, refreshRepo)
-	userService := user.NewService(userRepo)
+	userService := user.NewService(userRepo, refreshRepo)
 	txService := transaction.NewService(txRepo, categorizer, txWorker)
 	catService := category.NewService(catRepo)
 	budgetService := budget.NewService(budgetRepo)
@@ -74,22 +81,32 @@ func main() {
 	app := fiber.New(fiber.Config{
 		BodyLimit: 1 * 1024 * 1024,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
+			code := fiber.StatusInternalServerError
+			msg := "internal server error"
+			var e *fiber.Error
+			if errors.As(err, &e) {
+				code = e.Code
+				msg = e.Message
+			}
+			return c.Status(code).JSON(fiber.Map{"error": msg})
 		},
 	})
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE",
-		AllowHeaders: "Origin,Content-Type,Authorization,X-Device",
+		AllowHeaders: "Origin,Content-Type,Authorization,X-Device,X-App-Version",
 	}))
-	app.Use(logger.New())
+	appLogger := monitor.NewLogger()
+	monitorRepo := monitor.NewRepository(db, ctx)
+	monitorHandler := monitor.NewHandler(monitorRepo)
+	app.Use(monitor.RequestMonitor(appLogger, monitorRepo))
 
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, cfg.JWTSecret, tokenStore)
+	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, cfg.JWTSecret, tokenStore)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -116,6 +133,7 @@ func setupRoutes(
 	budgetHandler *budget.Handler,
 	savingsHandler *savings.Handler,
 	analyticsHandler *analytics.Handler,
+	monitorHandler *monitor.Handler,
 	jwtSecret string,
 	tokenStore auth.TokenStore,
 ) {
@@ -124,14 +142,16 @@ func setupRoutes(
 	authLimiter := limiter.New(limiter.Config{
 		Max:        10,
 		Expiration: 1 * 60 * 1000000000,
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too many requests, please try again later"})
+		},
 	})
 	api.Post("/auth/signup", authLimiter, authHandler.Signup)
 	api.Post("/auth/login", authLimiter, authHandler.Login)
 	api.Post("/auth/refresh", authLimiter, authHandler.Refresh)
+	api.Post("/auth/logout", authHandler.Logout)
 
 	protected := api.Group("", auth.AuthRequired(jwtSecret, tokenStore))
-
-	protected.Post("/auth/logout", authHandler.Logout)
 
 	protected.Get("/user/profile", userHandler.GetProfile)
 	protected.Put("/user/profile", userHandler.UpdateProfile)
@@ -144,6 +164,9 @@ func setupRoutes(
 	protected.Post("/user/linked-accounts/:id/sync", userHandler.SyncLinkedAccount)
 	protected.Get("/user/sessions", userHandler.GetSessions)
 	protected.Delete("/user/sessions", userHandler.RevokeAllSessions)
+	protected.Delete("/user/sessions/:id", userHandler.RevokeSession)
+
+	protected.Get("/user/activity", monitorHandler.GetActivity)
 
 	protected.Post("/transactions/ingest/sms", txHandler.IngestSMS)
 	protected.Post("/transactions/ingest/manual", txHandler.IngestManual)

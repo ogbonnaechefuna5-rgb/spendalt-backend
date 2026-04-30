@@ -11,6 +11,7 @@ type RefreshTokenRepository interface {
 	Store(userID, hash, device string, ttl time.Duration) error
 	Get(hash string) (*RefreshToken, error)
 	Revoke(hash string) error
+	RevokeAllForUser(userID string) error
 }
 
 type refreshTokenRepo struct{ db common.DB }
@@ -48,4 +49,9 @@ func (r *refreshTokenRepo) Revoke(hash string) error {
 		return errors.New("token not found")
 	}
 	return nil
+}
+
+func (r *refreshTokenRepo) RevokeAllForUser(userID string) error {
+	_, err := r.db.Exec(`UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = $1 AND revoked = FALSE`, userID)
+	return err
 }

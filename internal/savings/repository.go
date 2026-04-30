@@ -38,17 +38,31 @@ func (r *repository) GetByUserID(userID string, limit, offset int) ([]*SavingsGo
 }
 
 func (r *repository) UpdateProgress(id, userID string, amount float64) error {
-	_, err := r.db.Exec(
+	res, err := r.db.Exec(
 		`UPDATE savings_goals
 		 SET current_amount = LEAST(current_amount + $1, target_amount),
 		     status = CASE WHEN current_amount + $1 >= target_amount THEN 'completed' ELSE status END
 		 WHERE id = $2 AND user_id = $3`,
 		amount, id, userID)
-	return err
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
 }
 
 func (r *repository) Delete(id, userID string) error {
-	_, err := r.db.Exec(`DELETE FROM savings_goals WHERE id = $1 AND user_id = $2`, id, userID)
-	return err
+	res, err := r.db.Exec(`DELETE FROM savings_goals WHERE id = $1 AND user_id = $2`, id, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
 }
 

@@ -17,7 +17,7 @@ func NewHandler(service Service) *Handler {
 func (h *Handler) GetProfile(c *fiber.Ctx) error {
 	user, err := h.service.GetProfile(h.UserID(c))
 	if err != nil {
-		return h.Fail(c, 404, err)
+		return h.Fail(c, 500, err)
 	}
 	return h.OK(c, "user", user)
 }
@@ -121,4 +121,11 @@ func (h *Handler) RevokeAllSessions(c *fiber.Ctx) error {
 		return h.Fail(c, 500, err)
 	}
 	return h.Message(c, "All sessions revoked")
+}
+
+func (h *Handler) RevokeSession(c *fiber.Ctx) error {
+	if err := h.service.RevokeSession(h.UserID(c), c.Params("id")); err != nil {
+		return h.Fail(c, 500, err)
+	}
+	return h.Message(c, "Session revoked")
 }

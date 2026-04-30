@@ -1,8 +1,12 @@
 package user
 
 import (
+	"database/sql"
+	"errors"
 	"time"
+
 	"github.com/spendalt/backend/internal/common"
+	"github.com/spendalt/backend/internal/core"
 )
 
 type Repository interface {
@@ -19,6 +23,7 @@ type Repository interface {
 	SyncLinkedAccount(userID, accountID string) error
 	GetSessions(userID string, limit, offset int) ([]*UserSession, error)
 	RevokeAllSessions(userID string) error
+	RevokeSession(userID, sessionID string) error
 	CreateSession(session *UserSession) error
 }
 
@@ -49,6 +54,9 @@ func (r *repository) GetByEmail(email string) (*User, error) {
 		&user.ID, &user.Email, &user.PasswordHash,
 		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.CreatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrNotFound
+	}
 	return user, err
 }
 
@@ -60,6 +68,9 @@ func (r *repository) GetByPhone(phone string) (*User, error) {
 		&user.ID, &user.Email, &user.PasswordHash,
 		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.CreatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrNotFound
+	}
 	return user, err
 }
 
@@ -71,6 +82,9 @@ func (r *repository) GetByID(id string) (*User, error) {
 		&user.ID, &user.Email, &user.PasswordHash,
 		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.CreatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, core.ErrNotFound
+	}
 	return user, err
 }
 
@@ -146,7 +160,10 @@ func (r *repository) SyncLinkedAccount(userID, accountID string) error {
 
 func (r *repository) GetSessions(userID string, limit, offset int) ([]*UserSession, error) {
 	rows, err := r.db.Query(
-		`SELECT id, user_id, token_jti, device, ip_address, created_at, expires_at
+		`SELECT id, user_id, token_jti,
+		        COALESCE(device, ''), COALESCE(device_type, ''), COALESCE(os, ''),
+		        COALESCE(app_version, ''), COALESCE(ip_address, ''),
+		        created_at, expires_at
 		 FROM user_sessions WHERE user_id = $1 AND expires_at > NOW() ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		userID, limit, offset,
 	)
@@ -157,7 +174,7 @@ func (r *repository) GetSessions(userID string, limit, offset int) ([]*UserSessi
 	var sessions []*UserSession
 	for rows.Next() {
 		s := &UserSession{}
-		if err := rows.Scan(&s.ID, &s.UserID, &s.TokenJTI, &s.Device, &s.IPAddress, &s.CreatedAt, &s.ExpiresAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.UserID, &s.TokenJTI, &s.Device, &s.DeviceType, &s.OS, &s.AppVersion, &s.IPAddress, &s.CreatedAt, &s.ExpiresAt); err != nil {
 			return nil, err
 		}
 		sessions = append(sessions, s)
@@ -170,11 +187,16 @@ func (r *repository) RevokeAllSessions(userID string) error {
 	return err
 }
 
+func (r *repository) RevokeSession(userID, sessionID string) error {
+	_, err := r.db.Exec(`DELETE FROM user_sessions WHERE id = $1 AND user_id = $2`, sessionID, userID)
+	return err
+}
+
 func (r *repository) CreateSession(session *UserSession) error {
 	_, err := r.db.Exec(
-		`INSERT INTO user_sessions (user_id, token_jti, device, ip_address, expires_at)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		session.UserID, session.TokenJTI, session.Device, session.IPAddress, session.ExpiresAt,
+		`INSERT INTO user_sessions (user_id, token_jti, device, device_type, os, app_version, ip_address, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		session.UserID, session.TokenJTI, session.Device, session.DeviceType, session.OS, session.AppVersion, session.IPAddress, session.ExpiresAt,
 	)
 	return err
 }

@@ -1,10 +1,35 @@
 package core
 
 import (
+	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
+
+// ErrNotFound is returned when a requested resource does not exist.
+var ErrNotFound = errors.New("not found")
+
+// AppError is a user-facing error with an associated HTTP status code.
+type AppError struct {
+	Status  int
+	Message string
+}
+
+func (e *AppError) Error() string { return e.Message }
+
+// NewError creates an AppError for client-facing messages.
+func NewError(status int, msg string) error { return &AppError{Status: status, Message: msg} }
+
+// isInternalError returns true for errors that should never be shown to users.
+func isInternalError(err error) bool {
+	msg := err.Error()
+	return strings.HasPrefix(msg, "pq:") ||
+		strings.HasPrefix(msg, "sql:") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no such host")
+}
 
 // Handler provides shared helpers all domain handlers embed.
 type Handler struct{}
@@ -36,7 +61,20 @@ func (h *Handler) Created(c *fiber.Ctx, key string, data interface{}) error {
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{key: data})
 }
 
+// Fail writes an error response. It respects AppError for status+message,
+// maps ErrNotFound to 404, masks any internal/DB error as 500,
+// and passes through all other errors at the given status.
 func (h *Handler) Fail(c *fiber.Ctx, status int, err error) error {
+	var appErr *AppError
+	if errors.As(err, &appErr) {
+		return c.Status(appErr.Status).JSON(fiber.Map{"error": appErr.Message})
+	}
+	if errors.Is(err, ErrNotFound) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+	}
+	if status >= 500 || isInternalError(err) {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+	}
 	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 }
 

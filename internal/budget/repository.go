@@ -43,14 +43,28 @@ func (r *repository) GetByUserID(userID string, limit, offset int) ([]*Budget, e
 }
 
 func (r *repository) Update(b *Budget) error {
-	_, err := r.db.Exec(
+	res, err := r.db.Exec(
 		`UPDATE budgets SET category = $1, amount = $2, period = $3 WHERE id = $4 AND user_id = $5`,
 		b.Category, b.Amount, b.Period, b.ID, b.UserID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
 }
 
 func (r *repository) Delete(id, userID string) error {
-	_, err := r.db.Exec(`DELETE FROM budgets WHERE id = $1 AND user_id = $2`, id, userID)
-	return err
+	res, err := r.db.Exec(`DELETE FROM budgets WHERE id = $1 AND user_id = $2`, id, userID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return core.ErrNotFound
+	}
+	return nil
 }

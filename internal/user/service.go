@@ -7,6 +7,11 @@ import (
 	"github.com/spendalt/backend/internal/common"
 )
 
+// RefreshRevoker is a subset of auth.RefreshTokenRepository to avoid an import cycle.
+type RefreshRevoker interface {
+	RevokeAllForUser(userID string) error
+}
+
 type Service interface {
 	GetProfile(userID string) (*User, error)
 	UpdateProfile(userID string, firstName, middleName, lastName, phone string) error
@@ -19,14 +24,16 @@ type Service interface {
 	SyncLinkedAccount(userID, accountID string) error
 	GetSessions(userID string, limit, offset int) ([]*UserSession, error)
 	RevokeAllSessions(userID string) error
+	RevokeSession(userID, sessionID string) error
 }
 
 type service struct {
-	repo Repository
+	repo        Repository
+	refreshRepo RefreshRevoker
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, refreshRepo RefreshRevoker) Service {
+	return &service{repo: repo, refreshRepo: refreshRepo}
 }
 
 func (s *service) GetProfile(userID string) (*User, error) {
@@ -102,5 +109,10 @@ func (s *service) GetSessions(userID string, limit, offset int) ([]*UserSession,
 }
 
 func (s *service) RevokeAllSessions(userID string) error {
+	_ = s.refreshRepo.RevokeAllForUser(userID) // best-effort: revoke refresh tokens on all devices
 	return s.repo.RevokeAllSessions(userID)
+}
+
+func (s *service) RevokeSession(userID, sessionID string) error {
+	return s.repo.RevokeSession(userID, sessionID)
 }

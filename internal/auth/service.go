@@ -25,7 +25,7 @@ type RefreshToken struct {
 
 type Service interface {
 	Register(email, password, firstName, middleName, lastName, phone string) (*user.User, error)
-	Login(identifier, password string, device, ip string) (*user.User, string, string, error)
+	Login(identifier, password string, device, ip, deviceType, os, appVersion string) (*user.User, string, string, error)
 	Logout(tokenString string) error
 	ValidateToken(tokenString string) (*user.User, error)
 	Refresh(rawToken string) (newAccess, newRefresh string, err error)
@@ -78,7 +78,7 @@ func (s *service) Register(email, password, firstName, middleName, lastName, pho
 	return u, nil
 }
 
-func (s *service) Login(identifier, password string, device, ip string) (*user.User, string, string, error) {
+func (s *service) Login(identifier, password string, device, ip, deviceType, os, appVersion string) (*user.User, string, string, error) {
 	if err := validateLogin(identifier, password); err != nil {
 		return nil, "", "", err
 	}
@@ -105,11 +105,14 @@ func (s *service) Login(identifier, password string, device, ip string) (*user.U
 		return nil, "", "", err
 	}
 	_ = s.userRepo.CreateSession(&user.UserSession{
-		UserID:    u.ID,
-		TokenJTI:  jti,
-		Device:    device,
-		IPAddress: ip,
-		ExpiresAt: time.Now().Add(15 * time.Minute),
+		UserID:     u.ID,
+		TokenJTI:   jti,
+		Device:     device,
+		DeviceType: deviceType,
+		OS:         os,
+		AppVersion: appVersion,
+		IPAddress:  ip,
+		ExpiresAt:  time.Now().Add(30 * 24 * time.Hour),
 	})
 	return u, accessToken, rawRefresh, nil
 }

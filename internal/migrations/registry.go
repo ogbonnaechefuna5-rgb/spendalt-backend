@@ -3,7 +3,13 @@
 // dependency order for the migrate command to execute sequentially.
 package migrations
 
-import "io/fs"
+import (
+	"database/sql"
+	"fmt"
+	"io/fs"
+
+	"github.com/pressly/goose/v3"
+)
 
 // Domain pairs a name with its embedded migration filesystem.
 type Domain struct {
@@ -14,3 +20,19 @@ type Domain struct {
 // Ordered defines the execution order — dependencies before dependents.
 // To add a new domain: embed its migrations in its own package and append here.
 var Ordered []Domain
+
+// RunUp applies all pending migrations for every registered domain.
+func RunUp(db *sql.DB) error {
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+	for _, d := range Ordered {
+		goose.SetTableName("goose_db_version_" + d.Name)
+		goose.SetBaseFS(d.FS)
+		fmt.Printf("── migrate %s\n", d.Name)
+		if err := goose.Up(db, "migrations"); err != nil {
+			return fmt.Errorf("migrate %s: %w", d.Name, err)
+		}
+	}
+	return nil
+}

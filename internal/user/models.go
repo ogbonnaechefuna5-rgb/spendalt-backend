@@ -35,11 +35,14 @@ type LinkedAccount struct {
 }
 
 type UserSession struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	TokenJTI  string    `json:"-"`
-	Device    string    `json:"device"`
-	IPAddress string    `json:"ip_address"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	TokenJTI    string    `json:"-"`
+	Device      string    `json:"device"`
+	DeviceType  string    `json:"device_type"`
+	OS          string    `json:"os"`
+	AppVersion  string    `json:"app_version"`
+	IPAddress   string    `json:"ip_address"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
 }
