@@ -10,6 +10,7 @@ type Repository interface {
 	GetByUserID(userID string, limit, offset int) ([]*SavingsGoal, error)
 	UpdateProgress(id, userID string, amount float64) error
 	Delete(id, userID string) error
+	GetSummary(userID string) (totalSaved float64, monthlyGain float64, err error)
 }
 
 type repository struct{ db common.DB }
@@ -66,3 +67,16 @@ func (r *repository) Delete(id, userID string) error {
 	return nil
 }
 
+
+func (r *repository) GetSummary(userID string) (float64, float64, error) {
+	var totalSaved float64
+	r.db.QueryRow(`SELECT COALESCE(SUM(current_amount),0) FROM savings_goals WHERE user_id=$1`, userID).Scan(&totalSaved)
+
+	// Monthly gain: difference between current amounts now vs 30 days ago (approximated by goals created this month)
+	var monthlyGain float64
+	r.db.QueryRow(`
+		SELECT COALESCE(SUM(current_amount),0) FROM savings_goals
+		WHERE user_id=$1 AND created_at >= NOW()-INTERVAL '30 days'`, userID).Scan(&monthlyGain)
+
+	return totalSaved, monthlyGain, nil
+}

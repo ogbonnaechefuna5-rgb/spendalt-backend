@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/spendalt/backend/config"
 	"github.com/spendalt/backend/internal/analytics"
+	"github.com/spendalt/backend/internal/dashboard"
 	"github.com/spendalt/backend/internal/monitor"
 	_ "github.com/spendalt/backend/internal/monitor" // register monitor migrations
 	"github.com/spendalt/backend/internal/auth"
@@ -68,6 +69,7 @@ func main() {
 	budgetService := budget.NewService(budgetRepo)
 	savingsService := savings.NewService(savingsRepo)
 	analyticsService := analytics.NewService(analyticsRepo)
+	dashboardService := dashboard.NewService(db)
 
 	// Handlers
 	authHandler := auth.NewHandler(authService)
@@ -77,6 +79,7 @@ func main() {
 	budgetHandler := budget.NewHandler(budgetService)
 	savingsHandler := savings.NewHandler(savingsService)
 	analyticsHandler := analytics.NewHandler(analyticsService)
+	dashboardHandler := dashboard.NewHandler(dashboardService)
 
 	app := fiber.New(fiber.Config{
 		BodyLimit: 1 * 1024 * 1024,
@@ -97,6 +100,7 @@ func main() {
 		AllowMethods: "GET,POST,PUT,DELETE",
 		AllowHeaders: "Origin,Content-Type,Authorization,X-Device,X-App-Version",
 	}))
+	app.Use(monitor.SecurityHeaders())
 	appLogger := monitor.NewLogger()
 	monitorRepo := monitor.NewRepository(db, ctx)
 	monitorHandler := monitor.NewHandler(monitorRepo)
@@ -106,7 +110,7 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, cfg.JWTSecret, tokenStore)
+	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, dashboardHandler, cfg.JWTSecret, tokenStore)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -134,6 +138,7 @@ func setupRoutes(
 	savingsHandler *savings.Handler,
 	analyticsHandler *analytics.Handler,
 	monitorHandler *monitor.Handler,
+	dashboardHandler *dashboard.Handler,
 	jwtSecret string,
 	tokenStore auth.TokenStore,
 ) {
@@ -181,12 +186,16 @@ func setupRoutes(
 	protected.Delete("/budgets/:id", budgetHandler.DeleteBudget)
 
 	protected.Post("/savings", savingsHandler.CreateGoal)
-	protected.Get("/savings", savingsHandler.GetGoals)
+	protected.Get("/savings", savingsHandler.GetComposite)
+	protected.Get("/savings/list", savingsHandler.GetGoals)
 	protected.Put("/savings/:id/progress", savingsHandler.UpdateProgress)
 	protected.Delete("/savings/:id", savingsHandler.DeleteGoal)
 
 	protected.Get("/analytics/insights", analyticsHandler.GetInsights)
 	protected.Get("/analytics/weekly-trend", analyticsHandler.GetWeeklyTrend)
+	protected.Get("/analytics", analyticsHandler.GetComposite)
+
+	protected.Get("/dashboard", dashboardHandler.GetDashboard)
 
 	protected.Get("/health/score", analyticsHandler.GetHealthScore)
 }

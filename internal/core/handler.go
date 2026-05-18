@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/spendalt/backend/internal/lang"
 )
 
 // ErrNotFound is returned when a requested resource does not exist.
@@ -70,10 +71,10 @@ func (h *Handler) Fail(c *fiber.Ctx, status int, err error) error {
 		return c.Status(appErr.Status).JSON(fiber.Map{"error": appErr.Message})
 	}
 	if errors.Is(err, ErrNotFound) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "resource not found"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": lang.ErrNotFound})
 	}
 	if status >= 500 || isInternalError(err) {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": lang.ErrInternal})
 	}
 	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 }

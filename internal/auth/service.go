@@ -13,6 +13,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/spendalt/backend/internal/common"
+	"github.com/spendalt/backend/internal/lang"
 	"github.com/spendalt/backend/internal/user"
 )
 
@@ -53,16 +54,16 @@ func (s *service) Register(email, password, firstName, middleName, lastName, pho
 		return nil, err
 	}
 	if _, err := s.userRepo.GetByPhone(phone); err == nil {
-		return nil, errors.New("an account with this phone number already exists")
+		return nil, errors.New(lang.ErrPhoneTaken)
 	}
 	if email != "" {
 		if _, err := s.userRepo.GetByEmail(email); err == nil {
-			return nil, errors.New("an account with this email already exists")
+			return nil, errors.New(lang.ErrEmailTaken)
 		}
 	}
 	hashedPassword, err := common.HashPassword(password)
 	if err != nil {
-		return nil, errors.New("failed to process password")
+		return nil, errors.New(lang.ErrPasswordHash)
 	}
 	u := &user.User{
 		Email:        strings.TrimSpace(email),
@@ -73,25 +74,40 @@ func (s *service) Register(email, password, firstName, middleName, lastName, pho
 		Phone:        phone,
 	}
 	if err := s.userRepo.Create(u); err != nil {
-		return nil, errors.New("failed to create account, please try again")
+		return nil, errors.New(lang.ErrCreateAccount)
 	}
 	return u, nil
+}
+
+const maxLoginAttempts = 10
+
+func loginAttemptsKey(identifier string) string {
+	h := sha256.Sum256([]byte("login:" + identifier))
+	return hex.EncodeToString(h[:])
 }
 
 func (s *service) Login(identifier, password string, device, ip, deviceType, os, appVersion string) (*user.User, string, string, error) {
 	if err := validateLogin(identifier, password); err != nil {
 		return nil, "", "", err
 	}
+	attemptsKey := loginAttemptsKey(identifier)
+	attempts, _ := s.tokenStore.GetCounter(attemptsKey)
+	if attempts >= maxLoginAttempts {
+		return nil, "", "", errors.New(lang.ErrAccountLocked)
+	}
 	u, err := s.userRepo.GetByPhone(identifier)
 	if err != nil {
 		u, err = s.userRepo.GetByEmail(identifier)
 	}
 	if err != nil {
-		return nil, "", "", errors.New("incorrect phone/email or password")
+		s.tokenStore.IncrCounter(attemptsKey, 15*time.Minute)
+		return nil, "", "", errors.New(lang.ErrInvalidCredentials)
 	}
 	if !common.CheckPassword(password, u.PasswordHash) {
-		return nil, "", "", errors.New("incorrect phone number or password")
+		s.tokenStore.IncrCounter(attemptsKey, 15*time.Minute)
+		return nil, "", "", errors.New(lang.ErrInvalidCredentials)
 	}
+	s.tokenStore.DeleteCounter(attemptsKey)
 	jti := uuid.NewString()
 	accessToken, err := s.generateTokenWithJTI(u.ID, jti)
 	if err != nil {
@@ -121,7 +137,7 @@ func (s *service) Refresh(rawToken string) (string, string, error) {
 	hash := hashToken(rawToken)
 	rt, err := s.refreshRepo.Get(hash)
 	if err != nil || rt.Revoked || rt.ExpiresAt.Before(time.Now()) {
-		return "", "", errors.New("invalid or expired refresh token")
+		return "", "", errors.New(lang.ErrInvalidRefreshToken)
 	}
 	if err := s.refreshRepo.Revoke(hash); err != nil {
 		return "", "", err

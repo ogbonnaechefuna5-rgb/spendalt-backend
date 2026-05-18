@@ -30,3 +30,29 @@ type HealthScore struct {
 	Insights        []HealthInsight `json:"insights"`
 	Recommendations []string        `json:"recommendations"`
 }
+
+// Composite response for the mobile analytics screen
+type CategoryBreakdown struct {
+	Name    string  `json:"name"`
+	Amount  float64 `json:"amount"`
+	Percent int     `json:"percent"`
+}
+
+type DayAmount struct {
+	Day    string  `json:"day"`
+	Amount float64 `json:"amount"`
+}
+
+type MerchantSummary struct {
+	Name   string `json:"name"`
+	Amount int    `json:"amount"`
+	Visits int    `json:"visits"`
+}
+
+type AnalyticsResponse struct {
+	TotalSpend       float64             `json:"totalSpend"`
+	TotalSpendChange int                 `json:"totalSpendChange"`
+	Categories       []CategoryBreakdown `json:"categories"`
+	Weekly           []DayAmount         `json:"weekly"`
+	Merchants        []MerchantSummary   `json:"merchants"`
+}

@@ -12,3 +12,10 @@ type SavingsGoal struct {
 	Status        string     `json:"status"`
 	CreatedAt     time.Time  `json:"created_at"`
 }
+
+
+type SavingsResponse struct {
+	TotalSaved  float64        `json:"totalSaved"`
+	MonthlyGain float64        `json:"monthlyGain"`
+	Goals       []*SavingsGoal `json:"goals"`
+}

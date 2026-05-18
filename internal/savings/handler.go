@@ -39,6 +39,15 @@ func (h *Handler) GetGoals(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"goals": goals, "page": page, "limit": limit})
 }
 
+func (h *Handler) GetComposite(c *fiber.Ctx) error {
+	page, limit := h.ParsePage(c)
+	data, err := h.service.GetComposite(h.UserID(c), limit, (page-1)*limit)
+	if err != nil {
+		return h.Fail(c, 500, err)
+	}
+	return c.JSON(data)
+}
+
 func (h *Handler) UpdateProgress(c *fiber.Ctx) error {
 	var req struct {
 		Amount float64 `json:"amount"`

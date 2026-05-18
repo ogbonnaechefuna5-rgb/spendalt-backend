@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/spendalt/backend/internal/core"
+	"github.com/spendalt/backend/internal/lang"
 	"github.com/spendalt/backend/internal/monitor"
 )
 
@@ -27,7 +28,7 @@ func (h *Handler) Signup(c *fiber.Ctx) error {
 		Phone      string `json:"phone"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return h.Fail(c, 400, errors.New("invalid request body"))
+		return h.Fail(c, 400, errors.New(lang.ErrInvalidBody))
 	}
 	user, err := h.service.Register(req.Email, req.Password, req.FirstName, req.MiddleName, req.LastName, req.Phone)
 	if err != nil {
@@ -51,7 +52,7 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 		Password   string `json:"password"`
 	}
 	if err := c.BodyParser(&req); err != nil {
-		return h.Fail(c, 400, errors.New("invalid request body"))
+		return h.Fail(c, 400, errors.New(lang.ErrInvalidBody))
 	}
 	d := monitor.ExtractDeviceInfo(c)
 	user, accessToken, refreshToken, err := h.service.Login(req.Identifier, req.Password, d.DeviceID, d.IP, d.DeviceType, d.OS, d.AppVersion)
@@ -76,7 +77,7 @@ func (h *Handler) Refresh(c *fiber.Ctx) error {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.RefreshToken == "" {
-		return h.Fail(c, 400, errors.New("refresh_token required"))
+		return h.Fail(c, 400, errors.New(lang.ErrRefreshRequired))
 	}
 	newAccess, newRefresh, err := h.service.Refresh(req.RefreshToken)
 	if err != nil {

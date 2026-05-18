@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/spendalt/backend/internal/common"
+	"github.com/spendalt/backend/internal/lang"
 )
 
 // RefreshRevoker is a subset of auth.RefreshTokenRepository to avoid an import cycle.
@@ -69,7 +70,7 @@ func (s *service) ChangePassword(userID string, oldPassword, newPassword string)
 	}
 
 	if !common.CheckPassword(oldPassword, user.PasswordHash) {
-		return errors.New("current password is incorrect")
+		return errors.New(lang.ErrCurrentPasswordWrong)
 	}
 
 	hashedPassword, err := common.HashPassword(newPassword)

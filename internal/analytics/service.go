@@ -4,6 +4,7 @@ type Service interface {
 	GetInsights(userID string) (*Insights, error)
 	GetWeeklyTrend(userID string) ([]*WeeklyTrend, error)
 	GetHealthScore(userID string) (*HealthScore, error)
+	GetComposite(userID, period string) (*AnalyticsResponse, error)
 }
 
 type service struct{ repo Repository }
@@ -16,6 +17,10 @@ func (s *service) GetInsights(userID string) (*Insights, error) {
 
 func (s *service) GetWeeklyTrend(userID string) ([]*WeeklyTrend, error) {
 	return s.repo.GetWeeklyTrend(userID)
+}
+
+func (s *service) GetComposite(userID, period string) (*AnalyticsResponse, error) {
+	return s.repo.GetComposite(userID, period)
 }
 
 func (s *service) GetHealthScore(userID string) (*HealthScore, error) {

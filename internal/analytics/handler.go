@@ -28,6 +28,15 @@ func (h *Handler) GetWeeklyTrend(c *fiber.Ctx) error {
 	return h.OK(c, "trend", trend)
 }
 
+func (h *Handler) GetComposite(c *fiber.Ctx) error {
+	period := c.Query("period", "week")
+	data, err := h.service.GetComposite(h.UserID(c), period)
+	if err != nil {
+		return h.Fail(c, 500, err)
+	}
+	return c.JSON(data)
+}
+
 func (h *Handler) GetHealthScore(c *fiber.Ctx) error {
 	score, err := h.service.GetHealthScore(h.UserID(c))
 	if err != nil {
