@@ -1,4 +1,4 @@
-# Spendalt Backend - Go Fiber
+# Moninte Backend - Go Fiber
 
 Production-ready fintech backend for Nigerian personal finance analytics.
 

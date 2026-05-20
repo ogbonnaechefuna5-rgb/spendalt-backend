@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/spendalt/backend/internal/common"
+	"github.com/moninte/backend/internal/common"
 )
 
 // Repository persists and queries request logs (SRP — only storage concern).
@@ -56,7 +56,7 @@ func (r *repository) drain(ctx context.Context) {
 
 func (r *repository) GetByUserID(userID string, limit int) ([]*RequestLog, error) {
 	rows, err := r.db.Query(`
-		SELECT id, user_id, method, path, status, latency_ms, error,
+		SELECT id, request_id, user_id, method, path, status, latency_ms, error,
 		       device_id, device_type, os, app_version, user_agent,
 		       ip, forwarded_for, real_ip, host, protocol, tls,
 		       origin, referer, accept_language, created_at
@@ -72,7 +72,7 @@ func (r *repository) GetByUserID(userID string, limit int) ([]*RequestLog, error
 	for rows.Next() {
 		e := &RequestLog{}
 		if err := rows.Scan(
-			&e.ID, &e.UserID, &e.Method, &e.Path, &e.Status, &e.LatencyMs, &e.Error,
+			&e.ID, &e.RequestID, &e.UserID, &e.Method, &e.Path, &e.Status, &e.LatencyMs, &e.Error,
 			&e.DeviceID, &e.DeviceType, &e.OS, &e.AppVersion, &e.UserAgent,
 			&e.IP, &e.ForwardedFor, &e.RealIP, &e.Host, &e.Protocol, &e.TLS,
 			&e.Origin, &e.Referer, &e.AcceptLanguage, &e.CreatedAt,
@@ -87,17 +87,17 @@ func (r *repository) GetByUserID(userID string, limit int) ([]*RequestLog, error
 func (r *repository) insert(e *RequestLog) {
 	_, err := r.db.Exec(`
 		INSERT INTO request_logs (
-			user_id, method, path, status, latency_ms, error,
+			request_id, user_id, method, path, status, latency_ms, error,
 			device_id, device_type, os, app_version, user_agent,
 			ip, forwarded_for, real_ip, host, protocol, tls,
 			origin, referer, accept_language
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,
-			$7,$8,$9,$10,$11,
-			$12,$13,$14,$15,$16,$17,
-			$18,$19,$20
+			$1,$2,$3,$4,$5,$6,$7,
+			$8,$9,$10,$11,$12,
+			$13,$14,$15,$16,$17,$18,
+			$19,$20,$21
 		)`,
-		e.UserID, e.Method, e.Path, e.Status, e.LatencyMs, e.Error,
+		e.RequestID, e.UserID, e.Method, e.Path, e.Status, e.LatencyMs, e.Error,
 		e.DeviceID, e.DeviceType, e.OS, e.AppVersion, e.UserAgent,
 		e.IP, e.ForwardedFor, e.RealIP, e.Host, e.Protocol, e.TLS,
 		e.Origin, e.Referer, e.AcceptLanguage,

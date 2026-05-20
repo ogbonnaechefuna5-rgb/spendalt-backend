@@ -74,9 +74,10 @@ const (
 // ── Core / Generic ────────────────────────────────────────────────────────────
 
 const (
-	ErrNotFound    = "resource not found"
-	ErrInternal    = "internal server error"
-	ErrUnauthorized = "unauthorized"
-	ErrInvalidToken = "invalid token"
-	ErrTokenRevoked = "token has been revoked"
+	ErrNotFound      = "resource not found"
+	ErrInternal      = "internal server error"
+	ErrUnauthorized  = "unauthorized"
+	ErrInvalidToken  = "invalid token"
+	ErrTokenRevoked  = "token has been revoked"
+	ErrRateLimited   = "too many requests, please try again later"
 )

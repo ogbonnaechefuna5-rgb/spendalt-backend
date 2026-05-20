@@ -3,7 +3,7 @@ package transaction
 import (
 	"time"
 
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Transaction struct {

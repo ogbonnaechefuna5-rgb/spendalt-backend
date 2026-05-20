@@ -2,7 +2,7 @@ package dashboard
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {

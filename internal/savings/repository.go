@@ -1,8 +1,8 @@
 package savings
 
 import (
-	"github.com/spendalt/backend/internal/common"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/common"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Repository interface {

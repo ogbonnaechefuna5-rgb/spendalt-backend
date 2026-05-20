@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/spendalt/backend/internal/common"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/common"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Repository interface {
@@ -17,7 +17,7 @@ type Repository interface {
 	Update(user *User) error
 	Delete(id string) error
 	GetPreferences(userID string) (*UserPreferences, error)
-	SavePreferences(userID string, sms, analytics, offers bool) error
+	SavePreferences(p *UserPreferences) error
 	GetLinkedAccounts(userID string, limit, offset int) ([]*LinkedAccount, error)
 	RemoveLinkedAccount(userID, accountID string) error
 	SyncLinkedAccount(userID, accountID string) error
@@ -48,7 +48,7 @@ func (r *repository) Create(user *User) error {
 
 func (r *repository) GetByEmail(email string) (*User, error) {
 	user := &User{}
-	query := `SELECT id, email, password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
+	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
 			  FROM users WHERE LOWER(email) = LOWER($1)`
 	err := r.db.QueryRow(query, email).Scan(
 		&user.ID, &user.Email, &user.PasswordHash,
@@ -62,7 +62,7 @@ func (r *repository) GetByEmail(email string) (*User, error) {
 
 func (r *repository) GetByPhone(phone string) (*User, error) {
 	user := &User{}
-	query := `SELECT id, email, password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
+	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
 			  FROM users WHERE phone = $1`
 	err := r.db.QueryRow(query, phone).Scan(
 		&user.ID, &user.Email, &user.PasswordHash,
@@ -76,7 +76,7 @@ func (r *repository) GetByPhone(phone string) (*User, error) {
 
 func (r *repository) GetByID(id string) (*User, error) {
 	user := &User{}
-	query := `SELECT id, email, password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
+	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
 			  FROM users WHERE id = $1`
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.Email, &user.PasswordHash,
@@ -103,23 +103,43 @@ func (r *repository) Delete(id string) error {
 func (r *repository) GetPreferences(userID string) (*UserPreferences, error) {
 	p := &UserPreferences{}
 	err := r.db.QueryRow(
-		`SELECT user_id, sms_detection, analytics, partner_offers FROM user_preferences WHERE user_id = $1`,
+		`SELECT user_id, sms_detection, analytics, partner_offers,
+		        transaction_alerts, budget_warnings, ai_insights,
+		        weekly_report, savings_reminders, promotions,
+		        hide_balances, crash_reports
+		 FROM user_preferences WHERE user_id = $1`,
 		userID,
-	).Scan(&p.UserID, &p.SMSDetection, &p.Analytics, &p.PartnerOffers)
+	).Scan(&p.UserID, &p.SMSDetection, &p.Analytics, &p.PartnerOffers,
+		&p.TransactionAlerts, &p.BudgetWarnings, &p.AIInsights,
+		&p.WeeklyReport, &p.SavingsReminders, &p.Promotions,
+		&p.HideBalances, &p.CrashReports)
 	if err != nil {
-		// Return defaults if not set yet
-		return &UserPreferences{UserID: userID, SMSDetection: true, Analytics: true, PartnerOffers: false}, nil
+		return &UserPreferences{
+			UserID: userID, SMSDetection: true, Analytics: true,
+			TransactionAlerts: true, BudgetWarnings: true, AIInsights: true,
+			SavingsReminders: true, CrashReports: true,
+		}, nil
 	}
 	return p, nil
 }
 
-func (r *repository) SavePreferences(userID string, sms, analytics, offers bool) error {
+func (r *repository) SavePreferences(p *UserPreferences) error {
 	_, err := r.db.Exec(
-		`INSERT INTO user_preferences (user_id, sms_detection, analytics, partner_offers, updated_at)
-		 VALUES ($1, $2, $3, $4, NOW())
-		 ON CONFLICT (user_id) DO UPDATE
-		 SET sms_detection = $2, analytics = $3, partner_offers = $4, updated_at = NOW()`,
-		userID, sms, analytics, offers,
+		`INSERT INTO user_preferences
+		 (user_id, sms_detection, analytics, partner_offers,
+		  transaction_alerts, budget_warnings, ai_insights,
+		  weekly_report, savings_reminders, promotions,
+		  hide_balances, crash_reports, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+		 ON CONFLICT (user_id) DO UPDATE SET
+		  sms_detection=$2, analytics=$3, partner_offers=$4,
+		  transaction_alerts=$5, budget_warnings=$6, ai_insights=$7,
+		  weekly_report=$8, savings_reminders=$9, promotions=$10,
+		  hide_balances=$11, crash_reports=$12, updated_at=NOW()`,
+		p.UserID, p.SMSDetection, p.Analytics, p.PartnerOffers,
+		p.TransactionAlerts, p.BudgetWarnings, p.AIInsights,
+		p.WeeklyReport, p.SavingsReminders, p.Promotions,
+		p.HideBalances, p.CrashReports,
 	)
 	return err
 }

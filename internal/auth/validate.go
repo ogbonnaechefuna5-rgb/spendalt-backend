@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/lang"
 )
 
 var phoneRegex = regexp.MustCompile(`^\+?[0-9]{7,15}$`)

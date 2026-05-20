@@ -1,6 +1,6 @@
 package budget
 
-import "github.com/spendalt/backend/internal/core"
+import "github.com/moninte/backend/internal/core"
 
 type Service interface {
 	Create(userID, category string, amount float64, period string) (*Budget, error)

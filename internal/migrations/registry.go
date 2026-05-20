@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"strings"
 
 	"github.com/pressly/goose/v3"
 )
@@ -30,7 +31,7 @@ func RunUp(db *sql.DB) error {
 		goose.SetTableName("goose_db_version_" + d.Name)
 		goose.SetBaseFS(d.FS)
 		fmt.Printf("── migrate %s\n", d.Name)
-		if err := goose.Up(db, "migrations"); err != nil {
+		if err := goose.Up(db, "migrations"); err != nil && !strings.Contains(err.Error(), "no next version found") {
 			return fmt.Errorf("migrate %s: %w", d.Name, err)
 		}
 	}

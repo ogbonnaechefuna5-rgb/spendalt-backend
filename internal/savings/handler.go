@@ -1,10 +1,8 @@
 package savings
 
 import (
-	"time"
-
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {
@@ -13,13 +11,8 @@ type Handler struct {
 }
 
 func NewHandler(service Service) *Handler { return &Handler{service: service} }
-
 func (h *Handler) CreateGoal(c *fiber.Ctx) error {
-	var req struct {
-		Name         string     `json:"name"`
-		TargetAmount float64    `json:"target_amount"`
-		Deadline     *time.Time `json:"deadline"`
-	}
+	var req CreateGoalRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
@@ -27,7 +20,7 @@ func (h *Handler) CreateGoal(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 400, err)
 	}
-	return h.Created(c, "goal", g)
+	return c.Status(fiber.StatusCreated).JSON(GoalResponse{Goal: g})
 }
 
 func (h *Handler) GetGoals(c *fiber.Ctx) error {
@@ -36,7 +29,10 @@ func (h *Handler) GetGoals(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"goals": goals, "page": page, "limit": limit})
+	return c.JSON(GoalListResponse{
+		Goals:    goals,
+		PageMeta: core.PageMeta{Page: page, Limit: limit},
+	})
 }
 
 func (h *Handler) GetComposite(c *fiber.Ctx) error {
@@ -49,9 +45,7 @@ func (h *Handler) GetComposite(c *fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateProgress(c *fiber.Ctx) error {
-	var req struct {
-		Amount float64 `json:"amount"`
-	}
+	var req UpdateProgressRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}

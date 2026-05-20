@@ -1,6 +1,6 @@
 package analytics
 
-import "github.com/spendalt/backend/internal/common"
+import "github.com/moninte/backend/internal/common"
 
 type Repository interface {
 	GetMonthlyInsights(userID string) (*Insights, error)

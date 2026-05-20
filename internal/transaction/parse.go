@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+// ParseSMS parses a bank SMS alert into amount, transaction type, and merchant.
+func ParseSMS(smsText string) (amount float64, txType, merchant string, err error) {
+	return parseSMS(smsText)
+}
+
+// GenerateFingerprint produces a deterministic SHA-256 hash for deduplication.
+func GenerateFingerprint(userID string, amount float64, merchant string, date time.Time) string {
+	return generateFingerprint(userID, amount, merchant, date)
+}
+
 func parseSMS(smsText string) (amount float64, txType, merchant string, err error) {
 	matches := regexp.MustCompile(`NGN\s*([\d,]+\.?\d*)`).FindStringSubmatch(smsText)
 	if len(matches) < 2 {

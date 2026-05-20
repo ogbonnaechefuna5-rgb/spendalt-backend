@@ -2,7 +2,7 @@ package transaction
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {
@@ -15,9 +15,7 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) IngestSMS(c *fiber.Ctx) error {
-	var req struct {
-		SMSText string `json:"sms_text"`
-	}
+	var req IngestSMSRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
@@ -25,20 +23,14 @@ func (h *Handler) IngestSMS(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 400, err)
 	}
-	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
-		"message": "SMS received and queued for processing",
-		"id":      raw.ID,
+	return c.Status(fiber.StatusAccepted).JSON(IngestSMSResponse{
+		Message: "SMS received and queued for processing",
+		ID:      raw.ID,
 	})
 }
 
 func (h *Handler) IngestManual(c *fiber.Ctx) error {
-	var req struct {
-		Amount      float64 `json:"amount"`
-		Type        string  `json:"type"`
-		Merchant    string  `json:"merchant"`
-		Category    string  `json:"category"`
-		Description string  `json:"description"`
-	}
+	var req IngestManualRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
@@ -46,14 +38,17 @@ func (h *Handler) IngestManual(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 400, err)
 	}
-	return h.Created(c, "transaction", tx)
+	return c.Status(fiber.StatusCreated).JSON(TransactionResponse{Transaction: tx})
 }
 
 func (h *Handler) GetTransactions(c *fiber.Ctx) error {
 	page, limit := h.ParsePage(c)
-	transactions, err := h.service.GetTransactions(h.UserID(c), page, limit)
+	txs, err := h.service.GetTransactions(h.UserID(c), page, limit)
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"transactions": transactions, "page": page, "limit": limit})
+	return c.JSON(TransactionListResponse{
+		Transactions: txs,
+		PageMeta:     core.PageMeta{Page: page, Limit: limit},
+	})
 }

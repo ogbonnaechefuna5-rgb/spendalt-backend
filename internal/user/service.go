@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/spendalt/backend/internal/common"
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/common"
+	"github.com/moninte/backend/internal/lang"
 )
 
 // RefreshRevoker is a subset of auth.RefreshTokenRepository to avoid an import cycle.
@@ -19,7 +19,7 @@ type Service interface {
 	ChangePassword(userID string, oldPassword, newPassword string) error
 	DeleteAccount(userID string) error
 	GetPreferences(userID string) (*UserPreferences, error)
-	SavePreferences(userID string, sms, analytics, offers bool) error
+	SavePreferences(userID string, p *UserPreferences) error
 	GetLinkedAccounts(userID string, limit, offset int) ([]*LinkedAccount, error)
 	RemoveLinkedAccount(userID, accountID string) error
 	SyncLinkedAccount(userID, accountID string) error
@@ -89,8 +89,9 @@ func (s *service) GetPreferences(userID string) (*UserPreferences, error) {
 	return s.repo.GetPreferences(userID)
 }
 
-func (s *service) SavePreferences(userID string, sms, analytics, offers bool) error {
-	return s.repo.SavePreferences(userID, sms, analytics, offers)
+func (s *service) SavePreferences(userID string, p *UserPreferences) error {
+	p.UserID = userID
+	return s.repo.SavePreferences(p)
 }
 
 func (s *service) GetLinkedAccounts(userID string, limit, offset int) ([]*LinkedAccount, error) {

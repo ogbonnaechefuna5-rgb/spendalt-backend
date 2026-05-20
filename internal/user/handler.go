@@ -2,7 +2,7 @@ package user
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {
@@ -15,20 +15,15 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) GetProfile(c *fiber.Ctx) error {
-	user, err := h.service.GetProfile(h.UserID(c))
+	u, err := h.service.GetProfile(h.UserID(c))
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return h.OK(c, "user", user)
+	return c.JSON(ProfileResponse{User: u})
 }
 
 func (h *Handler) UpdateProfile(c *fiber.Ctx) error {
-	var req struct {
-		FirstName  string `json:"first_name"`
-		MiddleName string `json:"middle_name"`
-		LastName   string `json:"last_name"`
-		Phone      string `json:"phone"`
-	}
+	var req UpdateProfileRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
@@ -39,10 +34,7 @@ func (h *Handler) UpdateProfile(c *fiber.Ctx) error {
 }
 
 func (h *Handler) ChangePassword(c *fiber.Ctx) error {
-	var req struct {
-		OldPassword string `json:"old_password"`
-		NewPassword string `json:"new_password"`
-	}
+	var req ChangePasswordRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
@@ -64,19 +56,28 @@ func (h *Handler) GetPreferences(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return h.OK(c, "preferences", prefs)
+	return c.JSON(PreferencesResponse{Preferences: prefs})
 }
 
 func (h *Handler) SavePreferences(c *fiber.Ctx) error {
-	var req struct {
-		SMSDetection  bool `json:"sms_detection"`
-		Analytics     bool `json:"analytics"`
-		PartnerOffers bool `json:"partner_offers"`
-	}
+	var req SavePreferencesRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
-	if err := h.service.SavePreferences(h.UserID(c), req.SMSDetection, req.Analytics, req.PartnerOffers); err != nil {
+	p := &UserPreferences{
+		SMSDetection:      req.SMSDetection,
+		Analytics:         req.Analytics,
+		PartnerOffers:     req.PartnerOffers,
+		TransactionAlerts: req.TransactionAlerts,
+		BudgetWarnings:    req.BudgetWarnings,
+		AIInsights:        req.AIInsights,
+		WeeklyReport:      req.WeeklyReport,
+		SavingsReminders:  req.SavingsReminders,
+		Promotions:        req.Promotions,
+		HideBalances:      req.HideBalances,
+		CrashReports:      req.CrashReports,
+	}
+	if err := h.service.SavePreferences(h.UserID(c), p); err != nil {
 		return h.Fail(c, 500, err)
 	}
 	return h.Message(c, "Preferences saved")
@@ -84,12 +85,14 @@ func (h *Handler) SavePreferences(c *fiber.Ctx) error {
 
 func (h *Handler) GetLinkedAccounts(c *fiber.Ctx) error {
 	page, limit := h.ParsePage(c)
-	offset := (page - 1) * limit
-	accounts, err := h.service.GetLinkedAccounts(h.UserID(c), limit, offset)
+	accounts, err := h.service.GetLinkedAccounts(h.UserID(c), limit, (page-1)*limit)
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"accounts": accounts, "page": page, "limit": limit})
+	return c.JSON(LinkedAccountsResponse{
+		Accounts: accounts,
+		PageMeta: core.PageMeta{Page: page, Limit: limit},
+	})
 }
 
 func (h *Handler) RemoveLinkedAccount(c *fiber.Ctx) error {
@@ -108,12 +111,14 @@ func (h *Handler) SyncLinkedAccount(c *fiber.Ctx) error {
 
 func (h *Handler) GetSessions(c *fiber.Ctx) error {
 	page, limit := h.ParsePage(c)
-	offset := (page - 1) * limit
-	sessions, err := h.service.GetSessions(h.UserID(c), limit, offset)
+	sessions, err := h.service.GetSessions(h.UserID(c), limit, (page-1)*limit)
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"sessions": sessions, "page": page, "limit": limit})
+	return c.JSON(SessionsResponse{
+		Sessions: sessions,
+		PageMeta: core.PageMeta{Page: page, Limit: limit},
+	})
 }
 
 func (h *Handler) RevokeAllSessions(c *fiber.Ctx) error {
@@ -124,7 +129,7 @@ func (h *Handler) RevokeAllSessions(c *fiber.Ctx) error {
 }
 
 func (h *Handler) RevokeSession(c *fiber.Ctx) error {
-	if err := h.service.RevokeSession(h.UserID(c), c.Params("id")); err != nil {
+	if err := h.service.RevokeSession(h.UserID(c), c.Params(("id"))); err != nil {
 		return h.Fail(c, 500, err)
 	}
 	return h.Message(c, "Session revoked")

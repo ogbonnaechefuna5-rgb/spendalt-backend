@@ -11,10 +11,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"github.com/spendalt/backend/internal/common"
-	"github.com/spendalt/backend/internal/lang"
-	"github.com/spendalt/backend/internal/user"
+	"github.com/moninte/backend/internal/common"
+	"github.com/moninte/backend/internal/lang"
+	"github.com/moninte/backend/internal/user"
 )
 
 type RefreshToken struct {
@@ -108,7 +107,7 @@ func (s *service) Login(identifier, password string, device, ip, deviceType, os,
 		return nil, "", "", errors.New(lang.ErrInvalidCredentials)
 	}
 	s.tokenStore.DeleteCounter(attemptsKey)
-	jti := uuid.NewString()
+	jti := common.NewID()
 	accessToken, err := s.generateTokenWithJTI(u.ID, jti)
 	if err != nil {
 		return nil, "", "", err
@@ -142,7 +141,7 @@ func (s *service) Refresh(rawToken string) (string, string, error) {
 	if err := s.refreshRepo.Revoke(hash); err != nil {
 		return "", "", err
 	}
-	newAccess, err := s.generateTokenWithJTI(rt.UserID, uuid.NewString())
+	newAccess, err := s.generateTokenWithJTI(rt.UserID, common.NewID())
 	if err != nil {
 		return "", "", err
 	}

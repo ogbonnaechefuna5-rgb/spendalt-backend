@@ -2,7 +2,7 @@ package user
 
 import (
 	"time"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type User struct {
@@ -16,10 +16,18 @@ type User struct {
 }
 
 type UserPreferences struct {
-	UserID        string `json:"user_id"`
-	SMSDetection  bool   `json:"sms_detection"`
-	Analytics     bool   `json:"analytics"`
-	PartnerOffers bool   `json:"partner_offers"`
+	UserID              string `json:"user_id"`
+	SMSDetection        bool   `json:"sms_detection"`
+	Analytics           bool   `json:"analytics"`
+	PartnerOffers       bool   `json:"partner_offers"`
+	TransactionAlerts   bool   `json:"transaction_alerts"`
+	BudgetWarnings      bool   `json:"budget_warnings"`
+	AIInsights          bool   `json:"ai_insights"`
+	WeeklyReport        bool   `json:"weekly_report"`
+	SavingsReminders    bool   `json:"savings_reminders"`
+	Promotions          bool   `json:"promotions"`
+	HideBalances        bool   `json:"hide_balances"`
+	CrashReports        bool   `json:"crash_reports"`
 }
 
 type LinkedAccount struct {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/lang"
 )
 
 var errDuplicate = errors.New(lang.ErrDuplicateTransaction)

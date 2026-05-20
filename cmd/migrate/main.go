@@ -8,17 +8,17 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
-	"github.com/spendalt/backend/config"
-	"github.com/spendalt/backend/internal/migrations"
+	"github.com/moninte/backend/config"
+	"github.com/moninte/backend/internal/migrations"
 
 	// Blank imports trigger each domain's init(), registering its migrations.
 	// Add new domains here in dependency order.
-	_ "github.com/spendalt/backend/internal/user"
-	_ "github.com/spendalt/backend/internal/category"
-	_ "github.com/spendalt/backend/internal/transaction"
-	_ "github.com/spendalt/backend/internal/budget"
-	_ "github.com/spendalt/backend/internal/savings"
-	_ "github.com/spendalt/backend/internal/auth"
+	_ "github.com/moninte/backend/internal/user"
+	_ "github.com/moninte/backend/internal/category"
+	_ "github.com/moninte/backend/internal/transaction"
+	_ "github.com/moninte/backend/internal/budget"
+	_ "github.com/moninte/backend/internal/savings"
+	_ "github.com/moninte/backend/internal/auth"
 )
 
 func main() {

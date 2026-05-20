@@ -5,6 +5,7 @@ import "time"
 // RequestLog is the persisted record of a single inbound request.
 type RequestLog struct {
 	ID        string    `json:"id"`
+	RequestID string    `json:"request_id"`
 	UserID    *string   `json:"user_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 

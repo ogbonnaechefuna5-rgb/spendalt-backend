@@ -1,7 +1,7 @@
 package dashboard
 
 import (
-	"github.com/spendalt/backend/internal/common"
+	"github.com/moninte/backend/internal/common"
 )
 
 type Service interface {
@@ -51,8 +51,8 @@ func (s *service) GetDashboard(userID string) (*DashboardResponse, error) {
 		AND DATE_TRUNC('month', transaction_date)=DATE_TRUNC('month', NOW()-INTERVAL '1 month')`, userID,
 	).Scan(&prevSpend, &prevIncome)
 
-	resp.MonthChange = pctChange(resp.ThisMonth, prevSpend)
-	resp.IncomeChange = pctChange(resp.Income, prevIncome)
+	resp.MonthChange = common.PctChange(resp.ThisMonth, prevSpend)
+	resp.IncomeChange = common.PctChange(resp.Income, prevIncome)
 
 	if resp.Income > 0 {
 		resp.SavingsPct = int(((resp.Income - resp.ThisMonth) / resp.Income) * 100)
@@ -62,7 +62,6 @@ func (s *service) GetDashboard(userID string) (*DashboardResponse, error) {
 		prevSavingsPct = int(((prevIncome - prevSpend) / prevIncome) * 100)
 	}
 	resp.SavingsChange = resp.SavingsPct - prevSavingsPct
-
 	// 7-day spending trend
 	trendRows, err := s.db.Query(`
 		SELECT COALESCE(SUM(t.amount),0)
@@ -125,12 +124,3 @@ func (s *service) GetDashboard(userID string) (*DashboardResponse, error) {
 	return resp, nil
 }
 
-func pctChange(current, previous float64) int {
-	if previous == 0 {
-		if current > 0 {
-			return 100
-		}
-		return 0
-	}
-	return int(((current - previous) / previous) * 100)
-}

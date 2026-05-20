@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/lang"
 )
 
 type Service interface {

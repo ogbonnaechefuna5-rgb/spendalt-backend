@@ -3,6 +3,7 @@ package common
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -24,8 +25,12 @@ func NewPostgresDB(databaseURL string) (*PostgresDB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	for i := range 10 {
+		if err = db.Ping(); err == nil {
+			return &PostgresDB{DB: db}, nil
+		}
+		fmt.Printf("[db] waiting for postgres (attempt %d/10): %v\n", i+1, err)
+		time.Sleep(2 * time.Second)
 	}
-	return &PostgresDB{DB: db}, nil
+	return nil, fmt.Errorf("failed to ping database: %w", err)
 }

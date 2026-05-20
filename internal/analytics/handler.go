@@ -2,7 +2,7 @@ package analytics
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {
@@ -17,7 +17,7 @@ func (h *Handler) GetInsights(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return h.OK(c, "insights", ins)
+	return c.JSON(InsightsResponse{Insights: ins})
 }
 
 func (h *Handler) GetWeeklyTrend(c *fiber.Ctx) error {
@@ -25,7 +25,7 @@ func (h *Handler) GetWeeklyTrend(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return h.OK(c, "trend", trend)
+	return c.JSON(WeeklyTrendResponse{Trend: trend})
 }
 
 func (h *Handler) GetComposite(c *fiber.Ctx) error {
@@ -42,5 +42,5 @@ func (h *Handler) GetHealthScore(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return h.OK(c, "health", score)
+	return c.JSON(HealthScoreResponse{Health: score})
 }

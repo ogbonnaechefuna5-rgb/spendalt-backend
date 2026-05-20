@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 const (

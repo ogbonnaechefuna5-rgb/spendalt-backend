@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/lang"
 )
 
 var validPeriods = map[string]bool{"daily": true, "weekly": true, "monthly": true, "yearly": true}

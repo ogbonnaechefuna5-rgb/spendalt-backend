@@ -4,11 +4,25 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/moninte/backend/internal/common"
 )
 
-// RequestMonitor logs and persists every inbound request/response with full device and network info.
+const RequestIDHeader = "X-Request-ID"
+const RequestIDLocal = "request_id"
+
+// RequestMonitor generates a unique request_id for every inbound request,
+// sets it on the response header, logs the full request/response, and
+// persists the entry asynchronously.
 func RequestMonitor(log Logger, repo Repository) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Accept a client-supplied ID (e.g. from mobile app) or generate one.
+		requestID := c.Get(RequestIDHeader)
+		if requestID == "" {
+			requestID = common.NewID()
+		}
+		c.Locals(RequestIDLocal, requestID)
+		c.Set(RequestIDHeader, requestID)
+
 		start := time.Now()
 		err := c.Next()
 
@@ -17,6 +31,7 @@ func RequestMonitor(log Logger, repo Repository) fiber.Handler {
 		status := c.Response().StatusCode()
 
 		entry := &RequestLog{
+			RequestID: requestID,
 			Method:    c.Method(),
 			Path:      c.Path(),
 			Status:    status,
@@ -39,7 +54,6 @@ func RequestMonitor(log Logger, repo Repository) fiber.Handler {
 			AcceptLanguage: d.AcceptLanguage,
 		}
 
-		// Attach authenticated user if present
 		if uid, ok := c.Locals("user_id").(string); ok && uid != "" {
 			entry.UserID = &uid
 		}
@@ -59,6 +73,7 @@ func RequestMonitor(log Logger, repo Repository) fiber.Handler {
 
 func requestArgs(e *RequestLog) []any {
 	return []any{
+		"request_id", e.RequestID,
 		"method", e.Method,
 		"path", e.Path,
 		"status", e.Status,

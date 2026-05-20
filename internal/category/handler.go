@@ -2,7 +2,7 @@ package category
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {
@@ -20,7 +20,10 @@ func (h *Handler) GetCategories(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"categories": categories, "page": page, "limit": limit})
+	return c.JSON(CategoryListResponse{
+		Categories: categories,
+		PageMeta:   core.PageMeta{Page: page, Limit: limit},
+	})
 }
 
 func (h *Handler) GetCategoryBreakdown(c *fiber.Ctx) error {
@@ -29,5 +32,8 @@ func (h *Handler) GetCategoryBreakdown(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"breakdown": breakdown, "page": page, "limit": limit})
+	return c.JSON(BreakdownListResponse{
+		Breakdown: breakdown,
+		PageMeta:  core.PageMeta{Page: page, Limit: limit},
+	})
 }

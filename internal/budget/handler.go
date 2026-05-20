@@ -2,7 +2,7 @@ package budget
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/core"
+	"github.com/moninte/backend/internal/core"
 )
 
 type Handler struct {
@@ -15,11 +15,7 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) CreateBudget(c *fiber.Ctx) error {
-	var req struct {
-		Category string  `json:"category"`
-		Amount   float64 `json:"amount"`
-		Period   string  `json:"period"`
-	}
+	var req CreateBudgetRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}
@@ -27,7 +23,7 @@ func (h *Handler) CreateBudget(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 400, err)
 	}
-	return h.Created(c, "budget", b)
+	return c.Status(fiber.StatusCreated).JSON(BudgetResponse{Budget: b})
 }
 
 func (h *Handler) GetBudgets(c *fiber.Ctx) error {
@@ -36,15 +32,11 @@ func (h *Handler) GetBudgets(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 500, err)
 	}
-	return c.JSON(fiber.Map{"budgets": budgets, "page": page, "limit": limit})
+	return c.JSON(BudgetListResponse{Budgets: budgets, PageMeta: core.PageMeta{Page: page, Limit: limit}})
 }
 
 func (h *Handler) UpdateBudget(c *fiber.Ctx) error {
-	var req struct {
-		Category string  `json:"category"`
-		Amount   float64 `json:"amount"`
-		Period   string  `json:"period"`
-	}
+	var req UpdateBudgetRequest
 	if err := c.BodyParser(&req); err != nil {
 		return h.Fail(c, 400, err)
 	}

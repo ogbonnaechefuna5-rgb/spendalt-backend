@@ -11,23 +11,35 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/spendalt/backend/config"
-	"github.com/spendalt/backend/internal/analytics"
-	"github.com/spendalt/backend/internal/dashboard"
-	"github.com/spendalt/backend/internal/monitor"
-	_ "github.com/spendalt/backend/internal/monitor" // register monitor migrations
-	"github.com/spendalt/backend/internal/auth"
-	"github.com/spendalt/backend/internal/budget"
-	"github.com/spendalt/backend/internal/category"
-	"github.com/spendalt/backend/internal/common"
-	"github.com/spendalt/backend/internal/migrations"
-	"github.com/spendalt/backend/internal/savings"
-	"github.com/spendalt/backend/internal/transaction"
-	"github.com/spendalt/backend/internal/user"
+	"github.com/moninte/backend/config"
+	"github.com/moninte/backend/internal/analytics"
+	"github.com/moninte/backend/internal/core"
+	"github.com/moninte/backend/internal/dashboard"
+	"github.com/moninte/backend/internal/lang"
+	"github.com/moninte/backend/internal/monitor"
+	"github.com/moninte/backend/internal/auth"
+	"github.com/moninte/backend/internal/budget"
+	"github.com/moninte/backend/internal/category"
+	"github.com/moninte/backend/internal/common"
+	"github.com/moninte/backend/internal/migrations"
+	"github.com/moninte/backend/internal/savings"
+	"github.com/moninte/backend/internal/transaction"
+	"github.com/moninte/backend/internal/user"
 )
 
 func main() {
 	cfg := config.Load()
+
+	// Explicit migration order — dependencies before dependents
+	migrations.Ordered = []migrations.Domain{
+		{Name: "user", FS: user.MigrationFiles},
+		{Name: "auth", FS: auth.MigrationFiles},
+		{Name: "monitor", FS: monitor.MigrationFiles},
+		{Name: "transaction", FS: transaction.MigrationFiles},
+		{Name: "category", FS: category.MigrationFiles},
+		{Name: "budget", FS: budget.MigrationFiles},
+		{Name: "savings", FS: savings.MigrationFiles},
+	}
 
 	db, err := common.NewPostgresDB(cfg.DatabaseURL)
 	if err != nil {
@@ -91,7 +103,7 @@ func main() {
 				code = e.Code
 				msg = e.Message
 			}
-			return c.Status(code).JSON(fiber.Map{"error": msg})
+			return c.Status(code).JSON(core.ErrorResponse{Error: msg})
 		},
 	})
 
@@ -148,7 +160,7 @@ func setupRoutes(
 		Max:        10,
 		Expiration: 1 * 60 * 1000000000,
 		LimitReached: func(c *fiber.Ctx) error {
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too many requests, please try again later"})
+			return c.Status(fiber.StatusTooManyRequests).JSON(core.ErrorResponse{Error: lang.ErrRateLimited})
 		},
 	})
 	api.Post("/auth/signup", authLimiter, authHandler.Signup)

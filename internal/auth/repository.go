@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/spendalt/backend/internal/common"
+	"github.com/moninte/backend/internal/common"
 )
 
 type RefreshTokenRepository interface {

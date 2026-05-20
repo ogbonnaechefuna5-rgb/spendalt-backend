@@ -1,5 +1,7 @@
 package analytics
 
+import "github.com/moninte/backend/internal/common"
+
 type Service interface {
 	GetInsights(userID string) (*Insights, error)
 	GetWeeklyTrend(userID string) ([]*WeeklyTrend, error)
@@ -32,12 +34,12 @@ func (s *service) GetHealthScore(userID string) (*HealthScore, error) {
 	if ins.TotalIncome > 0 {
 		savingsRatio = ((ins.TotalIncome - ins.TotalSpending) / ins.TotalIncome) * 100
 	}
-	savingsScore := int(fmin(savingsRatio*5, 100))
+	savingsScore := int(common.Fmin(savingsRatio*5, 100))
 	disciplineScore := 100
 	if ins.TotalIncome > 0 {
 		spendRatio := ins.TotalSpending / ins.TotalIncome
 		if spendRatio > 0.8 {
-			disciplineScore = int(fmax(0, 100-(spendRatio-0.8)*500))
+			disciplineScore = int(common.Fmax(0, 100-(spendRatio-0.8)*500))
 		}
 	}
 	overall := (savingsScore + disciplineScore) / 2
@@ -83,18 +85,4 @@ func gradeLabel(score int) string {
 	default:
 		return "Needs Work"
 	}
-}
-
-func fmin(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func fmax(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
 }

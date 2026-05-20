@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/lang"
 )
 
 // ErrNotFound is returned when a requested resource does not exist.
@@ -66,19 +66,25 @@ func (h *Handler) Created(c *fiber.Ctx, key string, data interface{}) error {
 // maps ErrNotFound to 404, masks any internal/DB error as 500,
 // and passes through all other errors at the given status.
 func (h *Handler) Fail(c *fiber.Ctx, status int, err error) error {
+	rid := h.RequestID(c)
 	var appErr *AppError
 	if errors.As(err, &appErr) {
-		return c.Status(appErr.Status).JSON(fiber.Map{"error": appErr.Message})
+		return c.Status(appErr.Status).JSON(ErrorResponse{Error: appErr.Message, RequestID: rid})
 	}
 	if errors.Is(err, ErrNotFound) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": lang.ErrNotFound})
+		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse{Error: lang.ErrNotFound, RequestID: rid})
 	}
 	if status >= 500 || isInternalError(err) {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": lang.ErrInternal})
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{Error: lang.ErrInternal, RequestID: rid})
 	}
-	return c.Status(status).JSON(fiber.Map{"error": err.Error()})
+	return c.Status(status).JSON(ErrorResponse{Error: err.Error(), RequestID: rid})
+}
+
+func (h *Handler) RequestID(c *fiber.Ctx) string {
+	id, _ := c.Locals("request_id").(string)
+	return id
 }
 
 func (h *Handler) Message(c *fiber.Ctx, msg string) error {
-	return c.JSON(fiber.Map{"message": msg})
+	return c.JSON(MessageResponse{Message: msg})
 }

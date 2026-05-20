@@ -6,14 +6,15 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/spendalt/backend/internal/lang"
+	"github.com/moninte/backend/internal/core"
+	"github.com/moninte/backend/internal/lang"
 )
 
 func AuthRequired(secret string, tokenStore TokenStore) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		auth := c.Get("Authorization")
 		if auth == "" {
-			return c.Status(401).JSON(fiber.Map{"error": lang.ErrUnauthorized})
+			return c.Status(401).JSON(core.ErrorResponse{Error: lang.ErrUnauthorized})
 		}
 
 		tokenString := strings.TrimPrefix(auth, "Bearer ")
@@ -25,7 +26,7 @@ func AuthRequired(secret string, tokenStore TokenStore) fiber.Handler {
 		})
 
 		if err != nil || !token.Valid {
-			return c.Status(401).JSON(fiber.Map{"error": lang.ErrInvalidToken})
+			return c.Status(401).JSON(core.ErrorResponse{Error: lang.ErrInvalidToken})
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
@@ -33,7 +34,7 @@ func AuthRequired(secret string, tokenStore TokenStore) fiber.Handler {
 		if jti, ok := claims["jti"].(string); ok && jti != "" {
 			revoked, err := tokenStore.IsRevoked(jti)
 			if err != nil || revoked {
-				return c.Status(401).JSON(fiber.Map{"error": lang.ErrTokenRevoked})
+				return c.Status(401).JSON(core.ErrorResponse{Error: lang.ErrTokenRevoked})
 			}
 		}
 

@@ -1,6 +1,6 @@
 package category
 
-import "github.com/spendalt/backend/internal/core"
+import "github.com/moninte/backend/internal/core"
 
 type Category struct {
 	core.BaseModel
