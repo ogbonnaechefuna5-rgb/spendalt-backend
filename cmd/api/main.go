@@ -13,15 +13,15 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/moninte/backend/config"
 	"github.com/moninte/backend/internal/analytics"
-	"github.com/moninte/backend/internal/core"
-	"github.com/moninte/backend/internal/dashboard"
-	"github.com/moninte/backend/internal/lang"
-	"github.com/moninte/backend/internal/monitor"
 	"github.com/moninte/backend/internal/auth"
 	"github.com/moninte/backend/internal/budget"
 	"github.com/moninte/backend/internal/category"
 	"github.com/moninte/backend/internal/common"
+	"github.com/moninte/backend/internal/core"
+	"github.com/moninte/backend/internal/dashboard"
+	"github.com/moninte/backend/internal/lang"
 	"github.com/moninte/backend/internal/migrations"
+	"github.com/moninte/backend/internal/monitor"
 	"github.com/moninte/backend/internal/savings"
 	"github.com/moninte/backend/internal/transaction"
 	"github.com/moninte/backend/internal/user"
@@ -60,6 +60,11 @@ func main() {
 	analyticsRepo := analytics.NewRepository(db)
 	refreshRepo := auth.NewRefreshTokenRepository(db)
 
+	// Seed static data
+	if err := catRepo.Seed(); err != nil {
+		log.Printf("[warn] category seed failed: %v", err)
+	}
+
 	// Token store (Redis optional — falls back to in-memory)
 	tokenStore, err := auth.NewTokenStore(cfg.RedisURL)
 	if err != nil {
@@ -94,7 +99,7 @@ func main() {
 	dashboardHandler := dashboard.NewHandler(dashboardService)
 
 	app := fiber.New(fiber.Config{
-		BodyLimit: 1 * 1024 * 1024,
+		BodyLimit: 10 * 1024 * 1024, // 10MB for statement uploads
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			msg := "internal server error"
@@ -117,6 +122,8 @@ func main() {
 	monitorRepo := monitor.NewRepository(db, ctx)
 	monitorHandler := monitor.NewHandler(monitorRepo)
 	app.Use(monitor.RequestMonitor(appLogger, monitorRepo))
+
+	app.Static("/uploads", "./uploads")
 
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
@@ -163,13 +170,29 @@ func setupRoutes(
 			return c.Status(fiber.StatusTooManyRequests).JSON(core.ErrorResponse{Error: lang.ErrRateLimited})
 		},
 	})
+
+	ingestLimiter := limiter.New(limiter.Config{
+		Max:        30,
+		Expiration: 1 * 60 * 1000000000,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			if uid, ok := c.Locals("user_id").(string); ok && uid != "" {
+				return "ingest:" + uid
+			}
+			return "ingest:" + c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(core.ErrorResponse{Error: lang.ErrRateLimited})
+		},
+	})
 	api.Post("/auth/signup", authLimiter, authHandler.Signup)
 	api.Post("/auth/login", authLimiter, authHandler.Login)
 	api.Post("/auth/refresh", authLimiter, authHandler.Refresh)
 	api.Post("/auth/logout", authHandler.Logout)
+	api.Post("/auth/oidc", authLimiter, authHandler.OIDCLogin)
 
 	protected := api.Group("", auth.AuthRequired(jwtSecret, tokenStore))
 
+	protected.Post("/user/avatar", userHandler.UploadAvatar)
 	protected.Get("/user/profile", userHandler.GetProfile)
 	protected.Put("/user/profile", userHandler.UpdateProfile)
 	protected.Post("/user/change-password", userHandler.ChangePassword)
@@ -185,8 +208,10 @@ func setupRoutes(
 
 	protected.Get("/user/activity", monitorHandler.GetActivity)
 
-	protected.Post("/transactions/ingest/sms", txHandler.IngestSMS)
-	protected.Post("/transactions/ingest/manual", txHandler.IngestManual)
+	protected.Post("/transactions/ingest/sms", ingestLimiter, txHandler.IngestSMS)
+	protected.Post("/transactions/ingest/sms/batch", ingestLimiter, txHandler.IngestSMSBatch)
+	protected.Post("/transactions/ingest/manual", ingestLimiter, txHandler.IngestManual)
+	protected.Post("/transactions/ingest/upload", ingestLimiter, txHandler.IngestUpload)
 	protected.Get("/transactions", txHandler.GetTransactions)
 
 	protected.Get("/categories", catHandler.GetCategories)

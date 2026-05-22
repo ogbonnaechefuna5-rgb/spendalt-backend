@@ -10,11 +10,12 @@ type RequestLog struct {
 	CreatedAt time.Time `json:"created_at"`
 
 	// Request / Response
-	Method    string  `json:"method"`
-	Path      string  `json:"path"`
-	Status    int     `json:"status"`
-	LatencyMs int64   `json:"latency_ms"`
-	Error     *string `json:"error,omitempty"`
+	Method       string  `json:"method"`
+	Path         string  `json:"path"`
+	Status       int     `json:"status"`
+	LatencyMs    int64   `json:"latency_ms"`
+	ResponseBody *string `json:"response_body,omitempty"`
+	Error        *string `json:"error,omitempty"`
 
 	// Device
 	DeviceID   string `json:"device_id"`

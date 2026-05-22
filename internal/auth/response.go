@@ -27,3 +27,10 @@ type RefreshResponse struct {
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
 }
+
+// OIDCResponse is the body returned by POST /auth/oidc.
+type OIDCResponse struct {
+	Token        string      `json:"token"`
+	RefreshToken string      `json:"refresh_token"`
+	User         UserPayload `json:"user"`
+}

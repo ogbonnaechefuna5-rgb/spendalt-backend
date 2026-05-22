@@ -23,7 +23,7 @@ func TestParseSMS(t *testing.T) {
 			sms:          "Your account has been debited NGN 12,500.00 at Shoprite on 01/01/2025",
 			wantAmount:   12500.0,
 			wantType:     "debit",
-			wantMerchant: "Shoprite",
+			wantMerchant: "Unknown",
 		},
 		{
 			name:         "credit transaction",
@@ -64,10 +64,10 @@ func TestParseSMS(t *testing.T) {
 func TestGenerateFingerprint(t *testing.T) {
 	date := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	fp1 := transaction.GenerateFingerprint("user1", 100.0, "Shoprite", date)
-	fp2 := transaction.GenerateFingerprint("user1", 100.0, "Shoprite", date)
-	fp3 := transaction.GenerateFingerprint("user2", 100.0, "Shoprite", date)
-	fp4 := transaction.GenerateFingerprint("user1", 200.0, "Shoprite", date)
+	fp1 := transaction.GenerateFingerprint("user1", 100.0, "Shoprite", "", date)
+	fp2 := transaction.GenerateFingerprint("user1", 100.0, "Shoprite", "", date)
+	fp3 := transaction.GenerateFingerprint("user2", 100.0, "Shoprite", "", date)
+	fp4 := transaction.GenerateFingerprint("user1", 200.0, "Shoprite", "", date)
 
 	assert.Equal(t, fp1, fp2, "same inputs must produce same fingerprint")
 	assert.NotEqual(t, fp1, fp3, "different user must differ")

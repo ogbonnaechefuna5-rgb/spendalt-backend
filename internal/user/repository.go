@@ -15,6 +15,7 @@ type Repository interface {
 	GetByPhone(phone string) (*User, error)
 	GetByID(id string) (*User, error)
 	Update(user *User) error
+	UpdateAvatar(userID, avatarURL string) error
 	Delete(id string) error
 	GetPreferences(userID string) (*UserPreferences, error)
 	SavePreferences(p *UserPreferences) error
@@ -48,11 +49,11 @@ func (r *repository) Create(user *User) error {
 
 func (r *repository) GetByEmail(email string) (*User, error) {
 	user := &User{}
-	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
+	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, COALESCE(avatar_url,''), created_at
 			  FROM users WHERE LOWER(email) = LOWER($1)`
 	err := r.db.QueryRow(query, email).Scan(
 		&user.ID, &user.Email, &user.PasswordHash,
-		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.CreatedAt,
+		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.AvatarURL, &user.CreatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, core.ErrNotFound
@@ -62,11 +63,11 @@ func (r *repository) GetByEmail(email string) (*User, error) {
 
 func (r *repository) GetByPhone(phone string) (*User, error) {
 	user := &User{}
-	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
+	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, COALESCE(avatar_url,''), created_at
 			  FROM users WHERE phone = $1`
 	err := r.db.QueryRow(query, phone).Scan(
 		&user.ID, &user.Email, &user.PasswordHash,
-		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.CreatedAt,
+		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.AvatarURL, &user.CreatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, core.ErrNotFound
@@ -76,11 +77,11 @@ func (r *repository) GetByPhone(phone string) (*User, error) {
 
 func (r *repository) GetByID(id string) (*User, error) {
 	user := &User{}
-	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, created_at
+	query := `SELECT id, COALESCE(email,''), password_hash, first_name, COALESCE(middle_name,''), last_name, phone, COALESCE(avatar_url,''), created_at
 			  FROM users WHERE id = $1`
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.Email, &user.PasswordHash,
-		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.CreatedAt,
+		&user.FirstName, &user.MiddleName, &user.LastName, &user.Phone, &user.AvatarURL, &user.CreatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, core.ErrNotFound
@@ -91,6 +92,11 @@ func (r *repository) GetByID(id string) (*User, error) {
 func (r *repository) Update(user *User) error {
 	query := `UPDATE users SET first_name=$1, middle_name=$2, last_name=$3, phone=$4, password_hash=$5 WHERE id=$6`
 	_, err := r.db.Exec(query, user.FirstName, user.MiddleName, user.LastName, user.Phone, user.PasswordHash, user.ID)
+	return err
+}
+
+func (r *repository) UpdateAvatar(userID, avatarURL string) error {
+	_, err := r.db.Exec(`UPDATE users SET avatar_url=$1 WHERE id=$2`, avatarURL, userID)
 	return err
 }
 

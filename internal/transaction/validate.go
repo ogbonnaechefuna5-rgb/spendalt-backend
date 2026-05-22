@@ -45,3 +45,22 @@ func validateIngestManual(amount float64, txType, merchant, description string) 
 	}
 	return nil
 }
+
+const maxUploadRows = 10_000
+
+func validateUploadRows(rows [][]string) error {
+	if len(rows) > maxUploadRows {
+		return errors.New("file contains too many rows, max 10,000")
+	}
+	return nil
+}
+
+func validateCSVAmount(amount float64) error {
+	if amount <= 0 {
+		return errors.New(lang.ErrAmountRequired)
+	}
+	if amount > 1_000_000_000 {
+		return errors.New(lang.ErrAmountTooLarge)
+	}
+	return nil
+}

@@ -1,7 +1,14 @@
 package user
 
 import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/moninte/backend/internal/common"
 	"github.com/moninte/backend/internal/core"
 )
 
@@ -133,4 +140,41 @@ func (h *Handler) RevokeSession(c *fiber.Ctx) error {
 		return h.Fail(c, 500, err)
 	}
 	return h.Message(c, "Session revoked")
+}
+
+func (h *Handler) UploadAvatar(c *fiber.Ctx) error {
+	file, err := c.FormFile("avatar")
+	if err != nil {
+		return h.Fail(c, 400, fiber.NewError(400, "avatar file is required"))
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp" {
+		return h.Fail(c, 400, fiber.NewError(400, "only JPG, PNG and WEBP images are supported"))
+	}
+	if file.Size > 5*1024*1024 {
+		return h.Fail(c, 400, fiber.NewError(400, "image must be under 5MB"))
+	}
+	if err := os.MkdirAll("./uploads/avatars", 0755); err != nil {
+		return h.Fail(c, 500, err)
+	}
+	filename := fmt.Sprintf("%s%s", common.NewID(), ext)
+	dst := filepath.Join("./uploads/avatars", filename)
+	src, err := file.Open()
+	if err != nil {
+		return h.Fail(c, 500, err)
+	}
+	defer src.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return h.Fail(c, 500, err)
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, src); err != nil {
+		return h.Fail(c, 500, err)
+	}
+	avatarURL := "/uploads/avatars/" + filename
+	if err := h.service.UploadAvatar(h.UserID(c), avatarURL); err != nil {
+		return h.Fail(c, 500, err)
+	}
+	return c.JSON(fiber.Map{"avatar_url": avatarURL})
 }

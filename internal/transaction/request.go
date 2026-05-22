@@ -5,6 +5,11 @@ type IngestSMSRequest struct {
 	SMSText string `json:"sms_text"`
 }
 
+// IngestSMSBatchRequest is the body for POST /transactions/ingest/sms/batch.
+type IngestSMSBatchRequest struct {
+	Messages []string `json:"messages"`
+}
+
 // IngestManualRequest is the body for POST /transactions/ingest/manual.
 type IngestManualRequest struct {
 	Amount      float64 `json:"amount"`

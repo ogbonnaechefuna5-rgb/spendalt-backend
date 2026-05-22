@@ -31,9 +31,9 @@ func NewRepository(db common.DB) Repository {
 
 func (r *repository) CreateRaw(raw *RawTransaction) error {
 	return r.db.QueryRow(
-		`INSERT INTO raw_transactions (user_id, source, raw_text)
-		 VALUES ($1, $2, $3) RETURNING id, created_at`,
-		raw.UserID, raw.Source, raw.RawText,
+		`INSERT INTO raw_transactions (user_id, source, raw_text, amount, transaction_type, detected_at)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+		raw.UserID, raw.Source, raw.RawText, raw.Amount, raw.TransactionType, raw.DetectedAt,
 	).Scan(&raw.ID, &raw.CreatedAt)
 }
 
@@ -69,9 +69,11 @@ func (r *repository) MarkProcessed(id string) error {
 
 func (r *repository) Create(tx *Transaction) error {
 	return r.db.QueryRow(
-		`INSERT INTO transactions (user_id, amount, transaction_type, merchant_name, category, description, fingerprint, transaction_date, source)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at`,
-		tx.UserID, tx.Amount, tx.Type, tx.Merchant, tx.Category, tx.Description, tx.Fingerprint, tx.TransactionDate, tx.Source,
+		`INSERT INTO transactions
+		 (user_id, raw_transaction_id, amount, transaction_type, merchant_name, category, description, fingerprint, transaction_date, source, balance_after)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at`,
+		tx.UserID, tx.RawTransactionID, tx.Amount, tx.Type, tx.Merchant, tx.Category,
+		tx.Description, tx.Fingerprint, tx.TransactionDate, tx.Source, tx.BalanceAfter,
 	).Scan(&tx.ID, &tx.CreatedAt)
 }
 

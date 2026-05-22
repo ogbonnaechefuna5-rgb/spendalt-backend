@@ -86,29 +86,37 @@ func (w *Worker) process(ctx context.Context, raw *RawTransaction) {
 		return
 	}
 
-	amount, txType, merchant, err := parseSMS(raw.RawText)
+	amount, txType, merchant, reference, description, txTime, err := parseSMSWithMeta(raw.RawText)
 	if err != nil {
 		log.Printf("[worker] parse failed for raw %s: %v — marking processed", raw.ID, err)
 		_ = w.repo.MarkProcessed(raw.ID)
 		return
 	}
 
-	fingerprint := generateFingerprint(raw.UserID, amount, merchant, raw.CreatedAt)
+	if txTime.IsZero() {
+		txTime = raw.CreatedAt
+	}
+
+	balance := parseBalance(raw.RawText)
+	fingerprint := generateFingerprint(raw.UserID, amount, merchant, reference, txTime)
 	if _, err := w.repo.GetByFingerprint(fingerprint); err == nil {
-		// Duplicate — mark processed and move on
 		_ = w.repo.MarkProcessed(raw.ID)
 		return
 	}
 
+	rawID := raw.ID
 	tx := &Transaction{
-		UserScoped:      core.UserScoped{UserID: raw.UserID},
-		Amount:          amount,
-		Type:            txType,
-		Merchant:        merchant,
-		Category:        w.categorizer.Categorize(merchant),
-		Fingerprint:     fingerprint,
-		Source:          "sms",
-		TransactionDate: raw.CreatedAt,
+		UserScoped:       core.UserScoped{UserID: raw.UserID},
+		RawTransactionID: &rawID,
+		Amount:           amount,
+		Type:             txType,
+		Merchant:         merchant,
+		Description:      description,
+		Category:         w.categorizer.Categorize(merchant),
+		Fingerprint:      fingerprint,
+		Source:           "sms",
+		TransactionDate:  txTime,
+		BalanceAfter:     balance,
 	}
 
 	if err := w.repo.Create(tx); err != nil {

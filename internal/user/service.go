@@ -16,6 +16,7 @@ type RefreshRevoker interface {
 type Service interface {
 	GetProfile(userID string) (*User, error)
 	UpdateProfile(userID string, firstName, middleName, lastName, phone string) error
+	UploadAvatar(userID, avatarURL string) error
 	ChangePassword(userID string, oldPassword, newPassword string) error
 	DeleteAccount(userID string) error
 	GetPreferences(userID string) (*UserPreferences, error)
@@ -39,6 +40,10 @@ func NewService(repo Repository, refreshRepo RefreshRevoker) Service {
 
 func (s *service) GetProfile(userID string) (*User, error) {
 	return s.repo.GetByID(userID)
+}
+
+func (s *service) UploadAvatar(userID, avatarURL string) error {
+	return s.repo.UpdateAvatar(userID, avatarURL)
 }
 
 func (s *service) UpdateProfile(userID string, firstName, middleName, lastName, phone string) error {

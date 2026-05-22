@@ -113,8 +113,10 @@ db-clear:
 db-drop:
 	@echo "WARNING: This will destroy all data and schema in $(DB_NAME)."
 	@read -p "Type 'yes' to confirm: " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1)
-	docker exec -i $(DB_CONTAINER) psql -U postgres -c "DROP DATABASE IF EXISTS $(DB_NAME);"
-	docker exec -i $(DB_CONTAINER) psql -U postgres -c "CREATE DATABASE $(DB_NAME) OWNER $(DB_USER);"
+	docker exec -i $(DB_CONTAINER) psql -U $(DB_USER) -d postgres -c \
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$(DB_NAME)' AND pid <> pg_backend_pid();"
+	docker exec -i $(DB_CONTAINER) psql -U $(DB_USER) -d postgres -c "DROP DATABASE IF EXISTS $(DB_NAME);"
+	docker exec -i $(DB_CONTAINER) psql -U $(DB_USER) -d postgres -c "CREATE DATABASE $(DB_NAME) OWNER $(DB_USER);"
 	@echo "Database recreated. Run 'make migrate-up' to restore schema."
 
 ## Dump the database to a file (usage: make db-dump FILE=backup.sql)

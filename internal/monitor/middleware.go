@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,6 +10,24 @@ import (
 
 const RequestIDHeader = "X-Request-ID"
 const RequestIDLocal = "request_id"
+
+// sensitivePathPrefixes lists path prefixes whose response bodies must not be
+// logged — they contain tokens, passwords, or PII.
+var sensitivePathPrefixes = []string{
+	"/api/v1/auth/",
+	"/api/v1/user/profile",
+	"/api/v1/user/change-password",
+	"/api/v1/user/avatar",
+}
+
+func isSensitivePath(path string) bool {
+	for _, prefix := range sensitivePathPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // RequestMonitor generates a unique request_id for every inbound request,
 // sets it on the response header, logs the full request/response, and
@@ -30,12 +49,21 @@ func RequestMonitor(log Logger, repo Repository) fiber.Handler {
 		latency := time.Since(start).Milliseconds()
 		status := c.Response().StatusCode()
 
+		// Never log response bodies for auth or profile endpoints — they contain
+		// tokens, passwords, and PII.
+		var body *string
+		if !isSensitivePath(c.Path()) {
+			b := string(c.Response().Body())
+			body = &b
+		}
+
 		entry := &RequestLog{
-			RequestID: requestID,
-			Method:    c.Method(),
-			Path:      c.Path(),
-			Status:    status,
-			LatencyMs: latency,
+			RequestID:    requestID,
+			Method:       c.Method(),
+			Path:         c.Path(),
+			Status:       status,
+			LatencyMs:    latency,
+			ResponseBody: body,
 			// Device
 			DeviceID:   d.DeviceID,
 			DeviceType: d.DeviceType,

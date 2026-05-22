@@ -25,3 +25,9 @@ type RefreshRequest struct {
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
+
+// OIDCRequest is the body for POST /auth/oidc.
+type OIDCRequest struct {
+	Provider string `json:"provider"` // "google" or "apple"
+	IDToken  string `json:"id_token"`
+}

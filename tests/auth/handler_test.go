@@ -51,9 +51,10 @@ func (r *stubUserRepo) GetByEmail(email string) (*user.User, error) {
 }
 func (r *stubUserRepo) GetByID(id string) (*user.User, error)                             { return &user.User{}, nil }
 func (r *stubUserRepo) Update(u *user.User) error                                          { return nil }
+func (r *stubUserRepo) UpdateAvatar(userID, avatarURL string) error                        { return nil }
 func (r *stubUserRepo) Delete(id string) error                                             { return nil }
 func (r *stubUserRepo) GetPreferences(userID string) (*user.UserPreferences, error)        { return &user.UserPreferences{}, nil }
-func (r *stubUserRepo) SavePreferences(userID string, sms, analytics, offers bool) error  { return nil }
+func (r *stubUserRepo) SavePreferences(p *user.UserPreferences) error                     { return nil }
 func (r *stubUserRepo) GetLinkedAccounts(userID string, limit, offset int) ([]*user.LinkedAccount, error) {
 	return nil, nil
 }

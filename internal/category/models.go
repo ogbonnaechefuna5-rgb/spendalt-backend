@@ -5,6 +5,8 @@ import "github.com/moninte/backend/internal/core"
 type Category struct {
 	core.BaseModel
 	Name     string   `json:"name"`
+	Icon     string   `json:"icon"`
+	Color    string   `json:"color"`
 	Keywords []string `json:"keywords"`
 }
 

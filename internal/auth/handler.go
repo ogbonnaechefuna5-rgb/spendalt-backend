@@ -84,3 +84,26 @@ func (h *Handler) Logout(c *fiber.Ctx) error {
 	}
 	return h.Message(c, "logged out successfully")
 }
+
+func (h *Handler) OIDCLogin(c *fiber.Ctx) error {
+	var req OIDCRequest
+	if err := c.BodyParser(&req); err != nil || req.Provider == "" || req.IDToken == "" {
+		return h.Fail(c, 400, errors.New(lang.ErrInvalidBody))
+	}
+	d := monitor.ExtractDeviceInfo(c)
+	u, accessToken, refreshToken, err := h.service.OIDCLogin(req.Provider, req.IDToken, d.DeviceID, d.IP, d.DeviceType, d.OS, d.AppVersion)
+	if err != nil {
+		return h.Fail(c, 401, err)
+	}
+	return c.JSON(OIDCResponse{
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+		User: UserPayload{
+			ID:         u.ID,
+			Email:      u.Email,
+			FirstName:  u.FirstName,
+			MiddleName: u.MiddleName,
+			LastName:   u.LastName,
+		},
+	})
+}

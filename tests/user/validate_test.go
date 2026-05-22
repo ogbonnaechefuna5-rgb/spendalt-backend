@@ -16,9 +16,10 @@ func (r *validateProfileRepo) GetByPhone(phone string) (*user.User, error)      
 func (r *validateProfileRepo) GetByEmail(email string) (*user.User, error)                        { return nil, errors.New("not found") }
 func (r *validateProfileRepo) GetByID(id string) (*user.User, error)                              { return &user.User{}, nil }
 func (r *validateProfileRepo) Update(u *user.User) error                                          { return nil }
+func (r *validateProfileRepo) UpdateAvatar(userID, avatarURL string) error                        { return nil }
 func (r *validateProfileRepo) Delete(id string) error                                             { return nil }
 func (r *validateProfileRepo) GetPreferences(userID string) (*user.UserPreferences, error)        { return &user.UserPreferences{}, nil }
-func (r *validateProfileRepo) SavePreferences(userID string, sms, analytics, offers bool) error  { return nil }
+func (r *validateProfileRepo) SavePreferences(p *user.UserPreferences) error              { return nil }
 func (r *validateProfileRepo) GetLinkedAccounts(userID string, limit, offset int) ([]*user.LinkedAccount, error) { return nil, nil }
 func (r *validateProfileRepo) RemoveLinkedAccount(userID, accountID string) error                 { return nil }
 func (r *validateProfileRepo) SyncLinkedAccount(userID, accountID string) error                   { return nil }

@@ -18,7 +18,7 @@ func TestCategorizer(t *testing.T) {
 		{"UBER TRIP", "Transportation"},
 		{"Shoprite Ikeja", "Shopping"},
 		{"Netflix subscription", "Entertainment"},
-		{"MTN Airtime", "Utilities"},
+		{"MTN Airtime", "Airtime & Data"},
 		{"Random Corp", "Other"},
 		{"", "Other"},
 		{"BOLT RIDE", "Transportation"},

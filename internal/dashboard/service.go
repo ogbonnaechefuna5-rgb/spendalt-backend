@@ -17,7 +17,8 @@ func NewService(db common.DB) Service { return &service{db: db} }
 func (s *service) GetDashboard(userID string) (*DashboardResponse, error) {
 	resp := &DashboardResponse{}
 
-	// Net worth & banks from linked_accounts
+	// Net worth: sum of linked account balances if available,
+	// otherwise derived from transaction history (total credits - total debits)
 	rows, err := s.db.Query(
 		`SELECT bank_name, COALESCE(balance, 0) FROM linked_accounts WHERE user_id = $1 AND status = 'active'`, userID)
 	if err == nil {
@@ -30,6 +31,15 @@ func (s *service) GetDashboard(userID string) (*DashboardResponse, error) {
 				resp.NetWorth += bal
 			}
 		}
+	}
+
+	if len(resp.Banks) == 0 {
+		// No linked accounts — derive net worth from transaction history
+		s.db.QueryRow(`
+			SELECT
+				COALESCE(SUM(CASE WHEN transaction_type='credit' THEN amount ELSE -amount END), 0)
+			FROM transactions WHERE user_id=$1`, userID,
+		).Scan(&resp.NetWorth)
 	}
 
 	// This month spending & income
