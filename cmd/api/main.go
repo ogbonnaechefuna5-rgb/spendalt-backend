@@ -22,7 +22,9 @@ import (
 	"github.com/moninte/backend/internal/lang"
 	"github.com/moninte/backend/internal/migrations"
 	"github.com/moninte/backend/internal/monitor"
+	"github.com/moninte/backend/internal/payment"
 	"github.com/moninte/backend/internal/savings"
+	"github.com/moninte/backend/internal/subscription"
 	"github.com/moninte/backend/internal/transaction"
 	"github.com/moninte/backend/internal/user"
 )
@@ -39,6 +41,7 @@ func main() {
 		{Name: "category", FS: category.MigrationFiles},
 		{Name: "budget", FS: budget.MigrationFiles},
 		{Name: "savings", FS: savings.MigrationFiles},
+		{Name: "subscription", FS: subscription.MigrationFiles},
 	}
 
 	db, err := common.NewPostgresDB(cfg.DatabaseURL)
@@ -59,6 +62,7 @@ func main() {
 	savingsRepo := savings.NewRepository(db)
 	analyticsRepo := analytics.NewRepository(db)
 	refreshRepo := auth.NewRefreshTokenRepository(db)
+	subRepo := subscription.NewRepository(db)
 
 	// Seed static data
 	if err := catRepo.Seed(); err != nil {
@@ -87,6 +91,12 @@ func main() {
 	savingsService := savings.NewService(savingsRepo)
 	analyticsService := analytics.NewService(analyticsRepo)
 	dashboardService := dashboard.NewService(db)
+	subService := subscription.NewService(subRepo)
+
+	paymentRegistry := payment.NewRegistry()
+	if cfg.PaystackSecret != "" {
+		paymentRegistry.Register(payment.NewPaystackProvider(cfg.PaystackSecret))
+	}
 
 	// Handlers
 	authHandler := auth.NewHandler(authService)
@@ -97,6 +107,7 @@ func main() {
 	savingsHandler := savings.NewHandler(savingsService)
 	analyticsHandler := analytics.NewHandler(analyticsService)
 	dashboardHandler := dashboard.NewHandler(dashboardService)
+	subHandler := subscription.NewHandler(subService, paymentRegistry)
 
 	app := fiber.New(fiber.Config{
 		BodyLimit: 10 * 1024 * 1024, // 10MB for statement uploads
@@ -129,7 +140,7 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, dashboardHandler, cfg.JWTSecret, tokenStore)
+	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, dashboardHandler, subHandler, subService, cfg.JWTSecret, tokenStore)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -158,6 +169,8 @@ func setupRoutes(
 	analyticsHandler *analytics.Handler,
 	monitorHandler *monitor.Handler,
 	dashboardHandler *dashboard.Handler,
+	subHandler *subscription.Handler,
+	subService subscription.Service,
 	jwtSecret string,
 	tokenStore auth.TokenStore,
 ) {
@@ -235,4 +248,16 @@ func setupRoutes(
 	protected.Get("/dashboard", dashboardHandler.GetDashboard)
 
 	protected.Get("/health/score", analyticsHandler.GetHealthScore)
+
+	// Subscription
+	api.Get("/plans", subHandler.GetPlans)
+	protected.Get("/subscription", subHandler.GetSubscription)
+	protected.Delete("/subscription", subHandler.Cancel)
+
+	// Payment webhooks — no auth, signature-verified by provider
+	api.Post("/webhooks/:provider", subHandler.Webhook)
+
+	// Premium-gated routes
+	premium := protected.Group("", subscription.RequireEntitlement(subService, "mono_sync"))
+	_ = premium // future: premium.Post("/sync/mono", ...)
 }

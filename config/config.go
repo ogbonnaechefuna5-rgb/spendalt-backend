@@ -7,11 +7,12 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	RedisURL    string
-	JWTSecret   string
-	Environment string
+	Port             string
+	DatabaseURL      string
+	RedisURL         string
+	JWTSecret        string
+	Environment      string
+	PaystackSecret   string
 }
 
 func Load() *Config {
@@ -28,11 +29,12 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: getEnv("DATABASE_URL", ""),
-		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
-		JWTSecret:   jwtSecret,
-		Environment: getEnv("ENVIRONMENT", "development"),
+		Port:           getEnv("PORT", "8080"),
+		DatabaseURL:    getEnv("DATABASE_URL", ""),
+		RedisURL:       getEnv("REDIS_URL", "redis://localhost:6379"),
+		JWTSecret:      jwtSecret,
+		Environment:    getEnv("ENVIRONMENT", "development"),
+		PaystackSecret: getEnv("PAYSTACK_SECRET_KEY", ""),
 	}
 }
 
