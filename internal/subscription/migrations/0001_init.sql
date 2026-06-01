@@ -59,6 +59,7 @@ INSERT INTO plan_entitlements (plan_id, feature) VALUES
 ON CONFLICT DO NOTHING;
 
 -- Every new user gets a free subscription automatically
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION create_free_subscription()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -67,6 +68,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 
 CREATE TRIGGER trg_user_free_subscription
     AFTER INSERT ON users

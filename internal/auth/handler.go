@@ -1,21 +1,26 @@
 package auth
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/moninte/backend/internal/core"
 	"github.com/moninte/backend/internal/lang"
 	"github.com/moninte/backend/internal/monitor"
+	"github.com/moninte/backend/internal/notification"
 )
 
 type Handler struct {
 	core.Handler
-	service Service
+	service      Service
+	notifService notification.Service
 }
 
-func NewHandler(service Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service Service, notifService notification.Service) *Handler {
+	return &Handler{service: service, notifService: notifService}
 }
 
 func (h *Handler) Signup(c *fiber.Ctx) error {
@@ -49,6 +54,10 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 401, err)
 	}
+
+	// Send login notification asynchronously — never block the login response.
+	go h.sendLoginNotification(u.ID, d.OS, d.IP)
+
 	return c.JSON(LoginResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
@@ -95,6 +104,9 @@ func (h *Handler) OIDCLogin(c *fiber.Ctx) error {
 	if err != nil {
 		return h.Fail(c, 401, err)
 	}
+
+	go h.sendLoginNotification(u.ID, d.OS, d.IP)
+
 	return c.JSON(OIDCResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
@@ -106,4 +118,23 @@ func (h *Handler) OIDCLogin(c *fiber.Ctx) error {
 			LastName:   u.LastName,
 		},
 	})
+}
+
+// sendLoginNotification creates an in-app + push notification for a new login.
+func (h *Handler) sendLoginNotification(userID, os, ip string) {
+	now := time.Now()
+	body := fmt.Sprintf("New sign-in on %s at %s. If this wasn't you, secure your account immediately.",
+		os, now.Format("Jan 2, 3:04 PM"))
+	if ip != "" {
+		body = fmt.Sprintf("New sign-in from %s on %s at %s. If this wasn't you, secure your account immediately.",
+			ip, os, now.Format("Jan 2, 3:04 PM"))
+	}
+	_, _ = h.notifService.Send(
+		context.Background(),
+		userID,
+		notification.TypeSystem,
+		"New Login Detected",
+		body,
+		nil,
+	)
 }

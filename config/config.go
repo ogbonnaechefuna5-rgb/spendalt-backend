@@ -3,16 +3,19 @@ package config
 import (
 	"log"
 	"os"
+
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port             string
-	DatabaseURL      string
-	RedisURL         string
-	JWTSecret        string
-	Environment      string
-	PaystackSecret   string
+	Port                string
+	DatabaseURL         string
+	RedisURL            string
+	JWTSecret           string
+	Environment         string
+	PaystackSecret      string
+	GoogleClientID      string
+	FirebaseCredentials string // path to service-account JSON file
 }
 
 func Load() *Config {
@@ -29,12 +32,14 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:           getEnv("PORT", "8080"),
-		DatabaseURL:    getEnv("DATABASE_URL", ""),
-		RedisURL:       getEnv("REDIS_URL", "redis://localhost:6379"),
-		JWTSecret:      jwtSecret,
-		Environment:    getEnv("ENVIRONMENT", "development"),
-		PaystackSecret: getEnv("PAYSTACK_SECRET_KEY", ""),
+		Port:                getEnv("PORT", "8080"),
+		DatabaseURL:         getEnv("DATABASE_URL", ""),
+		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379"),
+		JWTSecret:           jwtSecret,
+		Environment:         getEnv("ENVIRONMENT", "development"),
+		PaystackSecret:      getEnv("PAYSTACK_SECRET_KEY", ""),
+		GoogleClientID:      getEnv("GOOGLE_CLIENT_ID", ""),
+		FirebaseCredentials: getEnv("FIREBASE_CREDENTIALS", ""),
 	}
 }
 

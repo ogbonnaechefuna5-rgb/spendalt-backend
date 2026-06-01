@@ -22,6 +22,7 @@ import (
 	"github.com/moninte/backend/internal/lang"
 	"github.com/moninte/backend/internal/migrations"
 	"github.com/moninte/backend/internal/monitor"
+	"github.com/moninte/backend/internal/notification"
 	"github.com/moninte/backend/internal/payment"
 	"github.com/moninte/backend/internal/savings"
 	"github.com/moninte/backend/internal/subscription"
@@ -42,6 +43,7 @@ func main() {
 		{Name: "budget", FS: budget.MigrationFiles},
 		{Name: "savings", FS: savings.MigrationFiles},
 		{Name: "subscription", FS: subscription.MigrationFiles},
+		{Name: "notification", FS: notification.MigrationFiles},
 	}
 
 	db, err := common.NewPostgresDB(cfg.DatabaseURL)
@@ -63,6 +65,8 @@ func main() {
 	analyticsRepo := analytics.NewRepository(db)
 	refreshRepo := auth.NewRefreshTokenRepository(db)
 	subRepo := subscription.NewRepository(db)
+	notifRepo := notification.NewRepository(db)
+	notifTokenRepo := notification.NewDeviceTokenRepository(db)
 
 	// Seed static data
 	if err := catRepo.Seed(); err != nil {
@@ -82,6 +86,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	go txWorker.Run(ctx)
 
+	fcmSender := notification.NewFCMSender(ctx, cfg.FirebaseCredentials)
+
 	// Services
 	authService := auth.NewService(userRepo, cfg.JWTSecret, tokenStore, refreshRepo)
 	userService := user.NewService(userRepo, refreshRepo)
@@ -92,14 +98,22 @@ func main() {
 	analyticsService := analytics.NewService(analyticsRepo)
 	dashboardService := dashboard.NewService(db)
 	subService := subscription.NewService(subRepo)
+	notifService := notification.NewService(notifRepo, notifTokenRepo, fcmSender)
 
 	paymentRegistry := payment.NewRegistry()
 	if cfg.PaystackSecret != "" {
 		paymentRegistry.Register(payment.NewPaystackProvider(cfg.PaystackSecret))
 	}
 
+	if cfg.GoogleClientID == "" {
+		if cfg.Environment == "production" {
+			log.Fatal("GOOGLE_CLIENT_ID must be set in production to validate Google OIDC tokens")
+		}
+		log.Println("[warn] GOOGLE_CLIENT_ID not set — Google OIDC audience validation is disabled (development only)")
+	}
+
 	// Handlers
-	authHandler := auth.NewHandler(authService)
+	authHandler := auth.NewHandler(authService, notifService)
 	userHandler := user.NewHandler(userService)
 	txHandler := transaction.NewHandler(txService)
 	catHandler := category.NewHandler(catService)
@@ -108,6 +122,7 @@ func main() {
 	analyticsHandler := analytics.NewHandler(analyticsService)
 	dashboardHandler := dashboard.NewHandler(dashboardService)
 	subHandler := subscription.NewHandler(subService, paymentRegistry)
+	notifHandler := notification.NewHandler(notifService)
 
 	app := fiber.New(fiber.Config{
 		BodyLimit: 10 * 1024 * 1024, // 10MB for statement uploads
@@ -140,7 +155,7 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
-	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, dashboardHandler, subHandler, subService, cfg.JWTSecret, tokenStore)
+	setupRoutes(app, authHandler, userHandler, txHandler, catHandler, budgetHandler, savingsHandler, analyticsHandler, monitorHandler, dashboardHandler, subHandler, notifHandler, subService, cfg.JWTSecret, tokenStore)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -170,6 +185,7 @@ func setupRoutes(
 	monitorHandler *monitor.Handler,
 	dashboardHandler *dashboard.Handler,
 	subHandler *subscription.Handler,
+	notifHandler *notification.Handler,
 	subService subscription.Service,
 	jwtSecret string,
 	tokenStore auth.TokenStore,
@@ -256,6 +272,16 @@ func setupRoutes(
 
 	// Payment webhooks — no auth, signature-verified by provider
 	api.Post("/webhooks/:provider", subHandler.Webhook)
+
+	// Notifications
+	protected.Get("/notifications", notifHandler.List)
+	protected.Post("/notifications/read-all", notifHandler.MarkAllRead)
+	protected.Post("/notifications/:id/read", notifHandler.MarkRead)
+	protected.Delete("/notifications/:id", notifHandler.Delete)
+
+	// Device tokens (FCM)
+	protected.Post("/user/device-token", notifHandler.RegisterToken)
+	protected.Delete("/user/device-token", notifHandler.RemoveToken)
 
 	// Premium-gated routes
 	premium := protected.Group("", subscription.RequireEntitlement(subService, "mono_sync"))

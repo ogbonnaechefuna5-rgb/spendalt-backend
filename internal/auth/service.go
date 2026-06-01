@@ -12,6 +12,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -85,10 +86,16 @@ func (s *service) Register(email, password, firstName, middleName, lastName, pho
 	return u, nil
 }
 
-const maxLoginAttempts = 10
+const maxLoginAttempts = 5
+const maxIPLoginAttempts = 20
 
 func loginAttemptsKey(identifier string) string {
 	h := sha256.Sum256([]byte("login:" + identifier))
+	return hex.EncodeToString(h[:])
+}
+
+func loginIPKey(ip string) string {
+	h := sha256.Sum256([]byte("login_ip:" + ip))
 	return hex.EncodeToString(h[:])
 }
 
@@ -96,24 +103,39 @@ func (s *service) Login(identifier, password string, device, ip, deviceType, os,
 	if err := validateLogin(identifier, password); err != nil {
 		return nil, "", "", err
 	}
+
+	// Per-identifier lockout
 	attemptsKey := loginAttemptsKey(identifier)
 	attempts, _ := s.tokenStore.GetCounter(attemptsKey)
 	if attempts >= maxLoginAttempts {
 		return nil, "", "", errors.New(lang.ErrAccountLocked)
 	}
+
+	// Per-IP lockout — higher ceiling to avoid blocking shared IPs (NAT, carriers)
+	ipKey := loginIPKey(ip)
+	ipAttempts, _ := s.tokenStore.GetCounter(ipKey)
+	if ipAttempts >= maxIPLoginAttempts {
+		return nil, "", "", errors.New(lang.ErrRateLimited)
+	}
+
 	u, err := s.userRepo.GetByPhone(identifier)
 	if err != nil {
 		u, err = s.userRepo.GetByEmail(identifier)
 	}
 	if err != nil {
 		s.tokenStore.IncrCounter(attemptsKey, 15*time.Minute)
+		s.tokenStore.IncrCounter(ipKey, 15*time.Minute)
 		return nil, "", "", errors.New(lang.ErrInvalidCredentials)
 	}
 	if !common.CheckPassword(password, u.PasswordHash) {
 		s.tokenStore.IncrCounter(attemptsKey, 15*time.Minute)
+		s.tokenStore.IncrCounter(ipKey, 15*time.Minute)
 		return nil, "", "", errors.New(lang.ErrInvalidCredentials)
 	}
+
+	// Successful login — clear both counters
 	s.tokenStore.DeleteCounter(attemptsKey)
+	s.tokenStore.DeleteCounter(ipKey)
 	jti := common.NewID()
 	accessToken, err := s.generateTokenWithJTI(u.ID, jti)
 	if err != nil {
@@ -440,12 +462,13 @@ func verifyIDToken(tokenStr, jwksURL, expectedAudience string) (*oidcClaims, err
 }
 
 func verifyGoogleIDToken(idToken string) (email, firstName, lastName, sub string, err error) {
-	// Google's JWKS endpoint and client-ID audience.
-	// The audience must match the OAuth client ID configured in the Flutter app.
+	// Google's JWKS endpoint.
 	const googleJWKS = "https://www.googleapis.com/oauth2/v3/certs"
-	// We accept any audience here and rely on the token's exp/signature for
-	// security. In production, set this to your actual Google client ID.
-	// Using jwt.WithAudience("") would reject all tokens, so we parse manually.
+
+	// The audience must match the OAuth client ID configured in the Flutter app.
+	// Set GOOGLE_CLIENT_ID in the environment; fail open only in development.
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+
 	keys, ferr := fetchJWKS(googleJWKS)
 	if ferr != nil {
 		err = ferr
@@ -476,12 +499,17 @@ func verifyGoogleIDToken(idToken string) (email, firstName, lastName, sub string
 		return
 	}
 
+	parseOpts := []jwt.ParserOption{jwt.WithExpirationRequired(), jwt.WithIssuedAt()}
+	if googleClientID != "" {
+		parseOpts = append(parseOpts, jwt.WithAudience(googleClientID))
+	}
+
 	token, verr := jwt.Parse(idToken, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return pubKey, nil
-	}, jwt.WithExpirationRequired(), jwt.WithIssuedAt())
+	}, parseOpts...)
 	if verr != nil || !token.Valid {
 		err = fmt.Errorf("Google token invalid: %w", verr)
 		return
@@ -493,6 +521,15 @@ func verifyGoogleIDToken(idToken string) (email, firstName, lastName, sub string
 	if iss != "accounts.google.com" && iss != "https://accounts.google.com" {
 		err = errors.New("invalid Google token issuer")
 		return
+	}
+
+	// Verify audience explicitly when client ID is configured
+	if googleClientID != "" {
+		aud, _ := mapClaims["aud"].(string)
+		if aud != googleClientID {
+			err = errors.New("Google token audience mismatch")
+			return
+		}
 	}
 
 	email, _ = mapClaims["email"].(string)
